@@ -20,7 +20,7 @@
 | Conector Google Sheets | ✅ Completado | 2026-05-29 | Service Account, colores por score |
 | Conector CRM (HubSpot + Pipedrive CSV) | ✅ Completado | 2026-05-29 | `src/delivery/crm_exporter.py` |
 | Dashboard Streamlit (demo comercial) | ✅ Completado | 2026-05-29 | `src/dashboard/app.py`, :8501 |
-| Deploy Streamlit Cloud | 🟡 En curso | 2026-05-29 | Repo pusheado, pendiente confirmar URL |
+| Deploy Streamlit Cloud | ✅ Completado | 2026-05-29 | https://mharias99-scraping-ia-pipeline-src-dashboard-app-py.streamlit.app |
 | Integración Firecrawl en `main.py` | ✅ Completado | 2026-05-29 | `1e9c84d` — `source: firecrawl` en YAML |
 | Pipeline E2E con Firecrawl + Sheets | ✅ Completado | 2026-05-29 | 50 ofertas → 31 leads → Sheet en 98s |
 | Vista visual del proyecto (Rosen Charts) | ✅ Completado | 2026-05-29 | `project-ui/` · Next.js + D3 · 5 gráficas |
@@ -157,12 +157,9 @@
 
 ### 🔴 CRÍTICO — Hacer antes de mostrar el producto a un cliente
 
-**A. Confirmar deploy Streamlit Cloud**
-- **Qué:** Verificar que la URL pública del dashboard de leads funciona con datos reales.
-- **Por qué ahora:** Sin URL pública no hay demo remota. Es la "última milla" del producto.
-- **Cómo:** Ir a `share.streamlit.io` → tu app → copiar URL → probar que carga `data/sample/leads_sample.csv`.
-- **Riesgo si se ignora:** El dashboard existe solo en local. No puedes enviárselo a un cliente.
-- **Archivo:** `src/dashboard/app.py` · fallback ya implementado en `data/sample/`
+**A. ~~Confirmar deploy Streamlit Cloud~~ ✅ COMPLETADO**
+- URL pública confirmada: https://mharias99-scraping-ia-pipeline-src-dashboard-app-py.streamlit.app
+- Sirviendo `data/sample/leads_sample.csv` como fallback. Listo para compartir con clientes.
 
 **B. Volumen de ofertas insuficiente (InfoJobs solo da 5/query)**
 - **Qué:** Actualmente InfoJobs devuelve 5 ofertas por query (solo primera página). Con 5 queries = 25 ofertas de InfoJobs máx. Para un producto real necesitamos 200-500/ejecución.
@@ -224,6 +221,7 @@
 
 | Fecha | Cambio |
 |-------|--------|
+| 2026-05-29 | Deploy Streamlit Cloud confirmado: https://mharias99-scraping-ia-pipeline-src-dashboard-app-py.streamlit.app |
 | 2026-05-29 | Vista visual Rosen Charts completada: `project-ui/` Next.js + D3 · funnel, donut, bar, breakdown, metrics · build OK |
 | 2026-05-29 | Creado `PROJECT_DASHBOARD.md` con histórico completo · plantilla oficial aplicada |
 | 2026-05-29 | Firecrawl integrado en `main.py` vía `cfg.scraper.source` — `1e9c84d` |
