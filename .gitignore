@@ -12,3 +12,4 @@ data/output/*
 !data/sample/
 .claude/settings.local.json
 credentials/
+logs/

@@ -127,3 +127,5 @@
 | 2026-05-29 | Primera exportación real a Google Sheets | ✅ 16 leads en 11s · hoja 'Leads' creada · formato visual aplicado |
 | 2026-05-29 | Creación dashboard Streamlit (Fase 5.3) | ✅ KPIs, donut chart, bar chart por sector, tabla interactiva, exportar CSV, arranca en :8501 |
 | 2026-05-29 | Fase 4.1: config.yaml + pipeline unificado | ✅ src/config.py + configs/cliente_ejemplo.yaml · main.py encadena scraper→enricher→Sheets en 34s |
+| 2026-05-29 | Fase 4.2: logging rotativo a fichero | ✅ logs/pipeline.log · rotación diaria · 30 días de retención |
+| 2026-05-29 | Fase 5.2: conector CRM (HubSpot + Pipedrive) | ✅ crm_exporter.py genera hubspot_YYYYMMDD.csv y pipedrive_YYYYMMDD.csv automáticamente al final de cada ejecución |

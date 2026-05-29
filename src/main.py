@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import json
 import logging
+import logging.handlers
 import os
 import time
 from datetime import date
@@ -12,10 +13,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
+# ── Logging: consola + fichero rotativo diario ────────────────────────────────
+Path("logs").mkdir(exist_ok=True)
+_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+_file_handler = logging.handlers.TimedRotatingFileHandler(
+    "logs/pipeline.log", when="midnight", backupCount=30, encoding="utf-8"
 )
+_file_handler.setFormatter(_fmt)
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(_fmt)
+
+logging.basicConfig(level=logging.INFO, handlers=[_console_handler, _file_handler])
 logger = logging.getLogger(__name__)
 
 
@@ -173,13 +181,19 @@ def run_pipeline(args: argparse.Namespace) -> None:
     # ── Paso 2: Enriquecimiento ───────────────────────────────────────────────
     csv_path = step_enrich(cfg, raw_path)
 
-    # ── Paso 3: Google Sheets ─────────────────────────────────────────────────
+    # ── Paso 3: Entrega ───────────────────────────────────────────────────────
     if not args.skip_sheets:
         step_sheets(cfg, csv_path)
 
+    # CRM export siempre (no requiere credenciales externas)
+    from delivery.crm_exporter import run_crm_export
+    crm_paths = run_crm_export(min_score=cfg.enricher.min_score)
+
     elapsed = time.perf_counter() - start
     logger.info("═══ PIPELINE COMPLETO en %.1fs ═══", elapsed)
-    logger.info("CSV  → %s", csv_path)
+    logger.info("CSV       → %s", csv_path)
+    logger.info("HubSpot   → %s", crm_paths["hubspot"])
+    logger.info("Pipedrive → %s", crm_paths["pipedrive"])
 
 
 if __name__ == "__main__":
