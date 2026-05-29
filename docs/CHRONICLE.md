@@ -118,3 +118,5 @@
 | 2026-05-29 | Creación `docs/CHRONICLE.md` con roadmap PoC | ✅ Este archivo |
 | 2026-05-29 | Ejecución pipeline E2E completo (scraping + Claude API) | ✅ 50 registros enriquecidos en 31.9s → `data/output/dataset_20260529.csv` |
 | 2026-05-29 | Revisión estratégica del roadmap: pivote a modelo DaaS | ✅ Fase 4 rediseñada (sin Docker/README cliente), Fase 3 añade LOPD, nueva Fase 5 entrega + visualización |
+| 2026-05-29 | Creación `src/scraper/infojobs_scraper.py` | ✅ Scraper 2 fases: búsqueda por 5 queries + detalle completo por oferta |
+| 2026-05-29 | Creación `src/cleaner/lead_enricher.py` con JSON schema B2B | ✅ ENRICH_TOOL de lead qualification + sanitización LOPD integrada |
