@@ -122,3 +122,4 @@
 | 2026-05-29 | Pivote a Indeed.es: inspección de selectores CSS en vivo | ✅ `td.resultContent`, `a.jcs-JobTitle`, `[data-testid='company-name']` confirmados |
 | 2026-05-29 | Creación `src/scraper/indeed_scraper.py` con selectores validados | ✅ 16 ofertas reales extraídas (título, empresa, ubicación). Fase 2 bloqueada por bot detection en detail pages → usar solo fase 1 |
 | 2026-05-29 | Creación `src/cleaner/lead_enricher.py` con JSON schema B2B | ✅ ENRICH_TOOL de lead qualification + sanitización LOPD integrada |
+| 2026-05-29 | Ejecución lead_enricher sobre 16 ofertas de Indeed | ✅ 4 HIGH · 1 MEDIUM · 2 LOW · 9 DISCARD · leads_20260529.csv generado en 17s |

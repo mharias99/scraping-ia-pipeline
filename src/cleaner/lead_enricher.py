@@ -18,7 +18,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-RAW_PATH    = Path("data/raw/infojobs_raw.json")
+RAW_PATH    = Path("data/raw/indeed_raw.json")
 OUTPUT_DIR  = Path("data/output")
 BATCH_SIZE  = 5   # descripciones largas → batches pequeños
 MAX_RETRIES = 3
