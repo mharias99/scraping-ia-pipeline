@@ -67,8 +67,14 @@ SCORE_LABELS = {
 
 @st.cache_data(ttl=60)
 def load_data() -> pd.DataFrame:
+    # 1. Datos en vivo (ejecución local con pipeline activo)
     output_dir = Path("data/output")
     csvs = sorted(output_dir.glob("leads_*.csv"), reverse=True)
+    # 2. Fallback: datos de demo para Streamlit Cloud
+    if not csvs:
+        sample = Path("data/sample/leads_sample.csv")
+        if sample.exists():
+            csvs = [sample]
     if not csvs:
         return pd.DataFrame()
     df = pd.read_csv(csvs[0])

@@ -9,5 +9,6 @@ data/raw/*
 data/output/*
 !data/raw/.gitkeep
 !data/output/.gitkeep
+!data/sample/
 .claude/settings.local.json
 credentials/
