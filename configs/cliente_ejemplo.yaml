@@ -1,0 +1,26 @@
+client:
+  name: "Cliente Ejemplo"
+  id: "cliente_ejemplo"
+
+scraper:
+  source: "indeed"
+  location: "España"
+  queries:
+    - "data entry"
+    - "administrativo excel"
+    - "grabador datos"
+    - "auxiliar administrativo excel"
+    - "gestión documental"
+  max_pages_per_query: 3
+  max_results: 30
+
+enricher:
+  model: "claude-haiku-4-5-20251001"
+  batch_size: 5
+  min_score: "low"          # exportar: high | medium | low | all
+
+delivery:
+  google_sheets:
+    enabled: true
+    spreadsheet_id: ""      # vacío = usa GOOGLE_SHEETS_SPREADSHEET_ID del .env
+    worksheet_name: "Leads"
