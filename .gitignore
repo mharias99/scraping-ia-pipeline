@@ -13,3 +13,5 @@ data/output/*
 .claude/settings.local.json
 credentials/
 logs/
+project-ui/.next
+project-ui/node_modules
