@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(venv/bin/python *)",
+      "Bash(venv/bin/pytest *)",
+      "Bash(venv/bin/ruff *)",
+      "Bash(venv/bin/mypy *)",
+      "Bash(venv/bin/pip *)",
+      "Bash(venv/bin/playwright *)",
+      "Bash(find . *)",
+      "Bash(ls *)",
+      "Bash(cat *)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Bash(rm -rf *)",
+      "Bash(curl * | bash *)",
+      "Bash(pip install --user *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/lint-on-save.sh $CLAUDE_TOOL_INPUT_FILE_PATH"
+          }
+        ]
+      }
+    ]
+  },
+  "model": "claude-sonnet-4-6",
+  "autoMemoryEnabled": true
+}
