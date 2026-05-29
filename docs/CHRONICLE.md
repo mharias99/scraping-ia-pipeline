@@ -1,0 +1,101 @@
+# CHRONICLE — Pipeline Scraping + IA
+
+**Proyecto:** Sistema B2B de extracción y enriquecimiento de datos  
+**Tech Lead:** Claude Sonnet 4.6  
+**Inicio:** 2026-05-29  
+
+---
+
+## Timeline de Desarrollo — PoC Roadmap
+
+### FASE 0 — Fundamentos ✅ COMPLETADA (2026-05-29)
+> Objetivo: entorno reproducible, estructura profesional y pipeline esqueleto funcionando.
+
+| # | Tarea | Agente | Estado |
+|---|-------|--------|--------|
+| 0.1 | Estructura de carpetas y archivos base | — | ✅ |
+| 0.2 | Entorno virtual Python 3.11 + dependencias | — | ✅ |
+| 0.3 | `.claude/` con 7 agentes, 3 comandos, hooks, rules, skills | — | ✅ |
+| 0.4 | Scraper funcional: `quotes_scraper.py` (50 registros, 5 páginas) | `scraper-pro` | ✅ |
+| 0.5 | Enricher esqueleto: `enricher.py` (tool_use, retry, export CSV) | `data-cleaner` | ✅ |
+| 0.6 | `main.py` orquestador con flags `--skip-scrape` / `--skip-enrich` | — | ✅ |
+| 0.7 | 39 tests pytest en verde (mocks red y API) | `test-writer` | ✅ |
+| 0.8 | Git init + commit inicial | — | ✅ |
+
+---
+
+### FASE 1 — PoC Validada (Pendiente de créditos API)
+> Objetivo: ejecutar el pipeline E2E con datos reales y validar la calidad del output de Claude.
+
+| # | Tarea | Agente | Estado |
+|---|-------|--------|--------|
+| 1.1 | Cargar créditos en Anthropic Console | — | ⏳ Bloqueado |
+| 1.2 | Ejecutar `main.py` completo y revisar `data/output/dataset.csv` | `pipeline-orchestrator` | ⏳ |
+| 1.3 | Validar calidad del enriquecimiento: categorías, sentimientos, temas | `data-cleaner` | ⏳ |
+| 1.4 | Ajustar el prompt del enricher si los resultados no son precisos | `data-cleaner` | ⏳ |
+| 1.5 | Medir coste real por registro y tiempo total del pipeline | — | ⏳ |
+
+**Criterio de éxito Fase 1:** CSV con ≥95% de registros correctamente categorizados.
+
+---
+
+### FASE 2 — Escalado del Scraper
+> Objetivo: hacer el scraper genérico para poder apuntar a cualquier sitio B2B objetivo real.
+
+| # | Tarea | Agente | Estado |
+|---|-------|--------|--------|
+| 2.1 | Identificar el sitio B2B objetivo real del cliente | — | ⏳ |
+| 2.2 | Crear scraper específico con `/new-scraper [url]` | `scraper-pro` | ⏳ |
+| 2.3 | Implementar anti-detección avanzada (skill: `scraping-strategy`) | `scraper-pro` | ⏳ |
+| 2.4 | Probar con sitio real y medir tasa de éxito por página | `scraper-pro` | ⏳ |
+| 2.5 | Añadir soporte multi-sitio: config YAML con targets | `scraper-pro` | ⏳ |
+
+**Criterio de éxito Fase 2:** >90% de páginas scrapeadas sin bloqueo en 3 ejecuciones consecutivas.
+
+---
+
+### FASE 3 — Enriquecimiento Avanzado con IA
+> Objetivo: schema de salida adaptado al caso de uso B2B real, con campos de negocio.
+
+| # | Tarea | Agente | Estado |
+|---|-------|--------|--------|
+| 3.1 | Definir schema de campos B2B necesarios (empresa, sector, contacto, etc.) | `data-cleaner` | ⏳ |
+| 3.2 | Actualizar `ENRICH_TOOL` con el nuevo schema en `enricher.py` | `data-cleaner` | ⏳ |
+| 3.3 | Implementar procesamiento en batch con prompt caching (reducir coste) | `data-cleaner` | ⏳ |
+| 3.4 | Validación automática del output: columnas requeridas, tipos, nulos | `data-cleaner` | ⏳ |
+| 3.5 | Tests de regresión para el nuevo schema | `test-writer` | ⏳ |
+
+**Criterio de éxito Fase 3:** Coste por registro <$0.005 con calidad validada.
+
+---
+
+### FASE 4 — Productización
+> Objetivo: pipeline listo para entregar como producto o integrar en sistema del cliente.
+
+| # | Tarea | Agente | Estado |
+|---|-------|--------|--------|
+| 4.1 | Config externa: `config.yaml` con URL, campos, batch_size, modelo | — | ⏳ |
+| 4.2 | Logging estructurado a fichero + rotación diaria | `python-debugger` | ⏳ |
+| 4.3 | Notificación al finalizar (email o webhook) | — | ⏳ |
+| 4.4 | Dockerfile para ejecución reproducible en cualquier máquina | — | ⏳ |
+| 4.5 | README.md con instrucciones de uso para el cliente | — | ⏳ |
+| 4.6 | Revisión de seguridad final | `code-reviewer` | ⏳ |
+
+**Criterio de éxito Fase 4:** Tercero puede ejecutar el pipeline siguiendo solo el README.
+
+---
+
+## Log de Ejecución
+
+| Fecha | Acción | Resultado |
+|-------|--------|-----------|
+| 2026-05-29 | Creación estructura de proyecto: dirs, `.claude/`, agents, rules, hooks, settings | ✅ 35 archivos creados |
+| 2026-05-29 | Instalación entorno: Python 3.11.15, venv, dependencias `requirements.txt` | ✅ playwright 1.60, anthropic 0.105.2, pandas 3.0.3 |
+| 2026-05-29 | Instalación Playwright Chromium 148 + FFmpeg | ✅ Browsers listos en `~/.cache/ms-playwright` |
+| 2026-05-29 | Creación `src/scraper/quotes_scraper.py` | ✅ 50 citas extraídas de 5 páginas en 7.7s |
+| 2026-05-29 | Creación `src/cleaner/enricher.py` | ✅ tool_use + retry exponencial + export CSV |
+| 2026-05-29 | Creación `src/main.py` orquestador | ✅ pipeline E2E con flags `--skip-scrape` / `--skip-enrich` |
+| 2026-05-29 | Instalación skills Tier 1: firecrawl-agent, data-pipeline, pytest-testing, pandas-data-analysis | ✅ 4 skills globales instaladas |
+| 2026-05-29 | Creación `tests/` (conftest + test_scraper + test_enricher) | ✅ 39/39 tests en verde en 1.34s |
+| 2026-05-29 | `git init` + commit inicial `467f760` | ✅ 35 archivos, 1345 líneas |
+| 2026-05-29 | Creación `docs/CHRONICLE.md` con roadmap PoC | ✅ Este archivo |
