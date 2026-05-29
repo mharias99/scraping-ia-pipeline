@@ -124,3 +124,4 @@
 | 2026-05-29 | Creación `src/cleaner/lead_enricher.py` con JSON schema B2B | ✅ ENRICH_TOOL de lead qualification + sanitización LOPD integrada |
 | 2026-05-29 | Ejecución lead_enricher sobre 16 ofertas de Indeed | ✅ 4 HIGH · 1 MEDIUM · 2 LOW · 9 DISCARD · leads_20260529.csv generado en 17s |
 | 2026-05-29 | Creación `src/delivery/sheets_exporter.py` (Fase 5.1) | ✅ Conector Google Sheets con Service Account, colores por score, cabecera fija |
+| 2026-05-29 | Primera exportación real a Google Sheets | ✅ 16 leads en 11s · hoja 'Leads' creada · formato visual aplicado |
