@@ -151,12 +151,72 @@
 
 ## 8. Próximos pasos
 
-- [ ] Confirmar URL pública de Streamlit Cloud funcionando con `data/sample/`
-- [ ] Completar vista visual Rosen Charts (`project-ui/`)
-- [ ] Integrar Apify para volumen masivo (>100 ofertas/query)
-- [ ] Tests `firecrawl_scraper.py` con mock del SDK
-- [ ] Security review con agente `code-reviewer`
-- [ ] Guion demo comercial 10 min (Fase 5.5)
+> Ordenados por prioridad. Cada bloque incluye qué hacer, por qué es urgente y cómo arrancarlo.
+
+---
+
+### 🔴 CRÍTICO — Hacer antes de mostrar el producto a un cliente
+
+**A. Confirmar deploy Streamlit Cloud**
+- **Qué:** Verificar que la URL pública del dashboard de leads funciona con datos reales.
+- **Por qué ahora:** Sin URL pública no hay demo remota. Es la "última milla" del producto.
+- **Cómo:** Ir a `share.streamlit.io` → tu app → copiar URL → probar que carga `data/sample/leads_sample.csv`.
+- **Riesgo si se ignora:** El dashboard existe solo en local. No puedes enviárselo a un cliente.
+- **Archivo:** `src/dashboard/app.py` · fallback ya implementado en `data/sample/`
+
+**B. Volumen de ofertas insuficiente (InfoJobs solo da 5/query)**
+- **Qué:** Actualmente InfoJobs devuelve 5 ofertas por query (solo primera página). Con 5 queries = 25 ofertas de InfoJobs máx. Para un producto real necesitamos 200-500/ejecución.
+- **Por qué ahora:** Limita directamente la calidad del servicio al cliente.
+- **Cómo (opción rápida):** Implementar paginación en `firecrawl_scraper.py` → scrape páginas 1, 2, 3 de InfoJobs por query. Archivo: `src/scraper/firecrawl_scraper.py` función `run_firecrawl_scraper()`.
+- **Cómo (opción escalable):** Integrar Apify (ADR-002) — actor oficial de InfoJobs con proxies rotativos. Coste: ~$0.01/run.
+- **Riesgo si se ignora:** A 5 ofertas/query, el 80% del volumen viene de Indeed que tiene peor calidad de datos.
+
+**C. Calidad de datos de Indeed (ruido en empresa/ubicación)**
+- **Qué:** El campo `company` en resultados de Indeed sigue capturando artefactos: códigos postales pegados al nombre (`IGTP08916 Badalona`), tags HTML residuales. Claude los puntúa igualmente pero la presentación al cliente es sucia.
+- **Por qué ahora:** Si enseñas el Sheet a un cliente y ve "IGTP08916 Badalona" en la columna Empresa, pierde confianza.
+- **Cómo:** En `firecrawl_scraper.py → parse_indeed_markdown()`, añadir limpieza post-extracción: separar código postal del nombre de empresa, strip de dígitos al inicio.
+- **Archivo:** `src/scraper/firecrawl_scraper.py` línea ~105
+
+---
+
+### 🟡 IMPORTANTE — Hacer antes de primer cliente de pago
+
+**D. Security review del código de entrega**
+- **Qué:** Los módulos `src/delivery/` (Sheets, CRM) y `src/cleaner/` (enricher, lead_enricher) nunca han sido revisados formalmente.
+- **Por qué:** Manejan credenciales Google y API keys de Anthropic. Un leak en producción es un problema legal.
+- **Cómo:** Ejecutar `/code-review` o invocar el agente `code-reviewer` sobre esos dos módulos.
+- **Tiempo estimado:** 15 min.
+
+**E. Tests para `firecrawl_scraper.py`**
+- **Qué:** El scraper principal no tiene cobertura de tests. Si se rompe (cambio en InfoJobs/Indeed), no hay alerta automática.
+- **Cómo:** Crear `tests/test_firecrawl_scraper.py` mockeando `V1FirecrawlApp` con `unittest.mock.MagicMock`. Cubrir: parser InfoJobs, parser Indeed, filtros de ruido, deduplicación.
+- **Archivo de referencia:** `tests/test_scraper.py` (patrón ya establecido).
+
+**F. Queries irrelevantes en InfoJobs**
+- **Qué:** La query "data entry" en InfoJobs devuelve teleoperadores de seguros (GRUPO CONSTANT), farmacéuticos, etc. — empresas que NO son leads de automatización.
+- **Por qué:** Las queries son demasiado genéricas para InfoJobs que interpreta diferente al motor de Indeed.
+- **Cómo:** En `configs/cliente_ejemplo.yaml`, añadir queries más específicas para InfoJobs: `"operador introducción datos"`, `"grabador datos excel"`, `"administrativo base de datos"`. Crear un campo `infojobs_queries` separado de `indeed_queries` en el config.
+- **Archivo:** `src/config.py` + `configs/cliente_ejemplo.yaml`
+
+---
+
+### 🟢 MEJORA — Para escalar el negocio
+
+**G. Guion demo comercial (Fase 5.5)**
+- **Qué:** Un script de 10 minutos para una reunión de ventas con una PYME. Muestra: ejecutar pipeline en vivo → ver leads aparecer en su Google Sheet → abrir dashboard Streamlit.
+- **Por qué:** Sin guion, cada demo es diferente. Con guion, cualquier persona del equipo puede venderlo.
+- **Cómo:** Crear `docs/DEMO_SCRIPT.md` con: contexto del cliente, comandos exactos a ejecutar, qué mostrar en pantalla y en qué orden, respuestas a objeciones comunes.
+
+**H. Créditos Firecrawl: pasar a plan de pago**
+- **Qué:** Free tier = 500 créditos/mes. Con 10 requests por ejecución, son 50 ejecuciones/mes máx. En producción con varios clientes se agotará.
+- **Cuándo:** Cuando tengas el primer cliente de pago.
+- **Plan:** $19/mes → 3.000 créditos · $49/mes → 10.000 créditos.
+- **URL:** firecrawl.dev/pricing
+
+**I. Primer YAML de cliente real**
+- **Qué:** Duplicar `configs/cliente_ejemplo.yaml` → `configs/cliente_[nombre].yaml` con las queries específicas del sector del cliente, su Spreadsheet ID y su nombre.
+- **Cómo:** `cp configs/cliente_ejemplo.yaml configs/cliente_acme.yaml` → editar las 4 líneas relevantes.
+- **Tiempo:** 5 minutos.
 
 ---
 
