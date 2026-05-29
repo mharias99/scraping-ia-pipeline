@@ -118,5 +118,7 @@
 | 2026-05-29 | Creación `docs/CHRONICLE.md` con roadmap PoC | ✅ Este archivo |
 | 2026-05-29 | Ejecución pipeline E2E completo (scraping + Claude API) | ✅ 50 registros enriquecidos en 31.9s → `data/output/dataset_20260529.csv` |
 | 2026-05-29 | Revisión estratégica del roadmap: pivote a modelo DaaS | ✅ Fase 4 rediseñada (sin Docker/README cliente), Fase 3 añade LOPD, nueva Fase 5 entrega + visualización |
-| 2026-05-29 | Creación `src/scraper/infojobs_scraper.py` | ✅ Scraper 2 fases: búsqueda por 5 queries + detalle completo por oferta |
+| 2026-05-29 | Creación `src/scraper/infojobs_scraper.py` | ⚠️ Bloqueado por Distil/Imperva enterprise anti-bot |
+| 2026-05-29 | Pivote a Indeed.es: inspección de selectores CSS en vivo | ✅ `td.resultContent`, `a.jcs-JobTitle`, `[data-testid='company-name']` confirmados |
+| 2026-05-29 | Creación `src/scraper/indeed_scraper.py` con selectores validados | ✅ 16 ofertas reales extraídas (título, empresa, ubicación). Fase 2 bloqueada por bot detection en detail pages → usar solo fase 1 |
 | 2026-05-29 | Creación `src/cleaner/lead_enricher.py` con JSON schema B2B | ✅ ENRICH_TOOL de lead qualification + sanitización LOPD integrada |
