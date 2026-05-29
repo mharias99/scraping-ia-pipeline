@@ -125,3 +125,4 @@
 | 2026-05-29 | Ejecución lead_enricher sobre 16 ofertas de Indeed | ✅ 4 HIGH · 1 MEDIUM · 2 LOW · 9 DISCARD · leads_20260529.csv generado en 17s |
 | 2026-05-29 | Creación `src/delivery/sheets_exporter.py` (Fase 5.1) | ✅ Conector Google Sheets con Service Account, colores por score, cabecera fija |
 | 2026-05-29 | Primera exportación real a Google Sheets | ✅ 16 leads en 11s · hoja 'Leads' creada · formato visual aplicado |
+| 2026-05-29 | Creación dashboard Streamlit (Fase 5.3) | ✅ KPIs, donut chart, bar chart por sector, tabla interactiva, exportar CSV, arranca en :8501 |
