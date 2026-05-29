@@ -3,16 +3,16 @@ client:
   id: "cliente_ejemplo"
 
 scraper:
-  source: "indeed"
+  source: "firecrawl"          # firecrawl (recomendado) | indeed
   location: "España"
   queries:
     - "data entry"
     - "administrativo excel"
     - "grabador datos"
     - "auxiliar administrativo excel"
-    - "gestión documental"
+    - "facturación administrativa"
   max_pages_per_query: 3
-  max_results: 30
+  max_results: 50
 
 enricher:
   model: "claude-haiku-4-5-20251001"

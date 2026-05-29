@@ -129,4 +129,5 @@
 | 2026-05-29 | Fase 4.1: config.yaml + pipeline unificado | ✅ src/config.py + configs/cliente_ejemplo.yaml · main.py encadena scraper→enricher→Sheets en 34s |
 | 2026-05-29 | Fase 4.2: logging rotativo a fichero | ✅ logs/pipeline.log · rotación diaria · 30 días de retención |
 | 2026-05-29 | Firecrawl scraper: InfoJobs + Indeed anti-bot bypasseado | ✅ 50 ofertas únicas (12 InfoJobs + 38 Indeed) · Distil/Imperva bypasseado · LinkedIn bloqueado por acuerdo comercial |
+| 2026-05-29 | Firecrawl integrado en main.py + config.yaml actualizado | ✅ Pipeline E2E: 50 ofertas → 32 leads (12 HIGH + 12 MEDIUM) en 85s con source: firecrawl |
 | 2026-05-29 | Fase 5.2: conector CRM (HubSpot + Pipedrive) | ✅ crm_exporter.py genera hubspot_YYYYMMDD.csv y pipedrive_YYYYMMDD.csv automáticamente al final de cada ejecución |

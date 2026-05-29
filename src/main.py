@@ -46,20 +46,35 @@ Ejemplos:
 
 
 def step_scrape(cfg: Any) -> Path:
-    from scraper.indeed_scraper import run_indeed_scraper, save_raw
+    source   = cfg.scraper.source.lower()
+    queries  = cfg.scraper.queries
+    max_res  = cfg.scraper.max_results
+    raw_path = Path(f"data/raw/{cfg.client_id}_raw.json")
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info("── PASO 1/3: Scraping Indeed (%d queries, max %d resultados) ──",
-                len(cfg.scraper.queries), cfg.scraper.max_results)
+    logger.info("── PASO 1/3: Scraping [%s] (%d queries, max %d) ──",
+                source, len(queries), max_res)
 
-    jobs = asyncio.run(run_indeed_scraper(
-        max_pages_per_query=cfg.scraper.max_pages_per_query,
-        max_detail_pages=cfg.scraper.max_results,
-    ))
+    if source == "firecrawl":
+        from scraper.firecrawl_scraper import run_firecrawl_scraper
+        jobs = run_firecrawl_scraper(
+            queries=queries,
+            max_results=max_res,
+        )
+
+    elif source == "indeed":
+        from scraper.indeed_scraper import run_indeed_scraper
+        jobs = asyncio.run(run_indeed_scraper(
+            max_pages_per_query=cfg.scraper.max_pages_per_query,
+            max_detail_pages=max_res,
+        ))
+
+    else:
+        raise ValueError(f"Fuente desconocida: '{source}'. Usa 'firecrawl' o 'indeed'.")
+
     if not jobs:
         raise RuntimeError("El scraper no devolvió datos. Abortando.")
 
-    raw_path = Path(f"data/raw/{cfg.client_id}_raw.json")
-    raw_path.parent.mkdir(parents=True, exist_ok=True)
     with open(raw_path, "w", encoding="utf-8") as f:
         json.dump(jobs, f, ensure_ascii=False, indent=2)
 
