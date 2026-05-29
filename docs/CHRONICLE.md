@@ -55,7 +55,7 @@
 ---
 
 ### FASE 3 — Enriquecimiento Avanzado con IA
-> Objetivo: schema de salida adaptado al caso de uso B2B real, con campos de negocio.
+> Objetivo: schema de salida adaptado al caso de uso B2B real, con campos de negocio y cumplimiento legal.
 
 | # | Tarea | Agente | Estado |
 |---|-------|--------|--------|
@@ -63,25 +63,42 @@
 | 3.2 | Actualizar `ENRICH_TOOL` con el nuevo schema en `enricher.py` | `data-cleaner` | ⏳ |
 | 3.3 | Implementar procesamiento en batch con prompt caching (reducir coste) | `data-cleaner` | ⏳ |
 | 3.4 | Validación automática del output: columnas requeridas, tipos, nulos | `data-cleaner` | ⏳ |
-| 3.5 | Tests de regresión para el nuevo schema | `test-writer` | ⏳ |
+| 3.5 | **Sanitización Legal LOPD:** filtro IA que elimina emails personales (gmail/hotmail/yahoo) y conserva solo emails corporativos públicos (dominio empresa) | `data-cleaner` | ⏳ |
+| 3.6 | Tests de regresión para el nuevo schema + tests del filtro LOPD | `test-writer` | ⏳ |
 
-**Criterio de éxito Fase 3:** Coste por registro <$0.005 con calidad validada.
+**Criterio de éxito Fase 3:** Coste por registro <$0.005 · 0% emails personales en el output · calidad validada.
 
 ---
 
-### FASE 4 — Productización
-> Objetivo: pipeline listo para entregar como producto o integrar en sistema del cliente.
+### FASE 4 — Productización (Modelo DaaS)
+> Objetivo: pipeline robusto alojado en nuestra infraestructura. El cliente **no toca código** — solo recibe datos limpios.
+> Decisión estratégica: eliminamos la entrega de Docker/README al cliente final. Nosotros operamos el servicio.
 
 | # | Tarea | Agente | Estado |
 |---|-------|--------|--------|
 | 4.1 | Config externa: `config.yaml` con URL, campos, batch_size, modelo | — | ⏳ |
 | 4.2 | Logging estructurado a fichero + rotación diaria | `python-debugger` | ⏳ |
-| 4.3 | Notificación al finalizar (email o webhook) | — | ⏳ |
-| 4.4 | Dockerfile para ejecución reproducible en cualquier máquina | — | ⏳ |
-| 4.5 | README.md con instrucciones de uso para el cliente | — | ⏳ |
-| 4.6 | Revisión de seguridad final | `code-reviewer` | ⏳ |
+| 4.3 | Notificación al finalizar: webhook o email interno al operador | — | ⏳ |
+| 4.4 | Revisión de seguridad final del pipeline | `code-reviewer` | ⏳ |
+| 4.5 | Documentación interna de operaciones (para el equipo, no para el cliente) | — | ⏳ |
 
-**Criterio de éxito Fase 4:** Tercero puede ejecutar el pipeline siguiendo solo el README.
+**Criterio de éxito Fase 4:** Pipeline ejecutable por el equipo interno con un solo comando. Cliente no necesita intervención técnica.
+
+---
+
+### FASE 5 — La Última Milla (Entrega y Visualización)
+> Objetivo: llevar los datos limpios hasta donde el cliente PYME ya trabaja, sin fricción técnica. Demo visual lista para reuniones comerciales.
+
+| # | Tarea | Agente | Estado |
+|---|-------|--------|--------|
+| 5.1 | **Conector Google Sheets:** script `src/delivery/sheets_exporter.py` que inyecta el CSV directamente en la hoja del cliente vía Google Sheets API (oauth2 + gspread) | `data-cleaner` | ⏳ |
+| 5.2 | **Conector CRM genérico:** exportador a formato compatible con HubSpot/Pipedrive (CSV con columnas mapeadas al schema del CRM) | `data-cleaner` | ⏳ |
+| 5.3 | **Dashboard Streamlit:** `src/dashboard/app.py` con métricas clave: total leads, distribución por sector, top empresas, filtros interactivos, exportar selección a CSV | — | ⏳ |
+| 5.4 | Despliegue del dashboard en Streamlit Cloud (gratuito, URL pública para demos) | — | ⏳ |
+| 5.5 | **Demo comercial:** guion de demo de 10 min con datos reales para reuniones de ventas con PYMEs | — | ⏳ |
+| 5.6 | Tests del conector Sheets (mock de la API de Google) | `test-writer` | ⏳ |
+
+**Criterio de éxito Fase 5:** Comercial puede hacer demo en vivo en <10 min sin conocimientos técnicos. Cliente recibe datos en su Google Sheets en <2 min tras la ejecución del pipeline.
 
 ---
 
@@ -100,3 +117,4 @@
 | 2026-05-29 | `git init` + commit inicial `467f760` | ✅ 35 archivos, 1345 líneas |
 | 2026-05-29 | Creación `docs/CHRONICLE.md` con roadmap PoC | ✅ Este archivo |
 | 2026-05-29 | Ejecución pipeline E2E completo (scraping + Claude API) | ✅ 50 registros enriquecidos en 31.9s → `data/output/dataset_20260529.csv` |
+| 2026-05-29 | Revisión estratégica del roadmap: pivote a modelo DaaS | ✅ Fase 4 rediseñada (sin Docker/README cliente), Fase 3 añade LOPD, nueva Fase 5 entrega + visualización |
