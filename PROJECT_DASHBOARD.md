@@ -1,5 +1,22 @@
-# 📊 PROJECT DASHBOARD — App de Captación de Leads B2B
-> Última actualización: 2026-05-29 · Estado global: 🟢 Operativo
+# 📊 PROJECT DASHBOARD — Motor de Captación de Leads (Stack Legal)
+> Última actualización: 2026-05-30 · Estado global: 🟢 Operativo · Rama activa: `refactor/stack-legal`
+
+## Verticales activas
+
+| Vertical | Fuente de datos | Estado |
+|----------|----------------|--------|
+| **Auditoría digital PYMEs** | Google Places API oficial | 🟢 Activa |
+| **Empleo B2B (leads ETT/RRHH)** | API InfoJobs (validación interna) + Agregador con licencia (producción) | 🟡 En refactor |
+
+## Verticales congeladas
+
+| Vertical | Motivo | Fecha congelación |
+|----------|--------|-------------------|
+| **Arbitraje Coches** | Datos B2C personas físicas (RGPD), ToS Milanuncios, actor Apify sin garantía | 2026-05-30 |
+
+Ver condiciones de reactivación en `_frozen_coches/README.md`
+
+---
 
 ---
 
@@ -41,8 +58,9 @@
 | Herramienta / Paquete | Versión | Rol en el proyecto | Fecha alta |
 |-----------------------|---------|--------------------|------------|
 | Python | 3.11.15 | Runtime principal | 2026-05-29 |
-| firecrawl-py | 4.28.2 | Scraping anti-bot InfoJobs + Indeed | 2026-05-29 |
-| playwright | 1.60.0 | Scraping legacy (indeed_scraper, PoC) | 2026-05-29 |
+| **googlemaps** | **4.10.0** | **Google Places API oficial (Digital)** | **2026-05-30** |
+| firecrawl-py | 4.28.2 | Inspección web oficial de empresas (web_inspector) | 2026-05-30 |
+| playwright | 1.60.0 | Scraping legacy (deprecated, PoC) | 2026-05-29 |
 | beautifulsoup4 | 4.14.3 | Parsing HTML/markdown scrapeado | 2026-05-29 |
 | anthropic | 0.105.2 | Enriquecimiento IA (Claude Haiku tool_use) | 2026-05-29 |
 | pandas | 3.0.3 | DataFrames, limpieza, export CSV | 2026-05-29 |
@@ -105,19 +123,59 @@
 
 ---
 
-### ADR-003 · Inspección profunda por oferta → Firecrawl
-- **Fecha:** 2026-05-29 · **Estado:** Aceptada · **Commit:** `c48a51a`
-- **Contexto:** Playwright nativo bloqueado en InfoJobs (Distil/Imperva) e Indeed (bot detection en detalle). Sin descripción completa, Claude Haiku sólo puede puntuar por título → scoring de baja calidad.
-- **Decisión:** Usar `firecrawl-py` v4.28.2 con `formats=["markdown"]` para leer contenido de InfoJobs e Indeed, parseando el markdown resultante con regex propios.
-- **Justificación técnica:** Firecrawl gestiona render JS + cookies de sesión + fingerprint de browser + proxy residencial. InfoJobs: 19KB de contenido real vs 37KB de CAPTCHA page con Playwright. Indeed: descripción completa disponible.
-- **Justificación de negocio:** Pipeline validado E2E: 50 ofertas → 31 leads (11 HIGH + 13 MEDIUM) en 98s. Sin Firecrawl, solo 16 ofertas con datos insuficientes.
-- **Alternativas descartadas:**
-  - *Playwright + playwright-stealth*: API incompatible con Playwright 1.60
-  - *Proxies residenciales propios*: $50-200/mes, gestión compleja, ROI negativo en PoC
-  - *Firecrawl `extract` mode*: timeout en 35s (LLM + stealth combinados)
-- **Trade-offs / riesgos asumidos:** LinkedIn bloqueado (`WebsiteNotSupportedError`). Free tier = 500 créditos/mes → Plan de pago ($19/mes) necesario en producción.
+### ADR-003 · Inspección profunda por oferta → Firecrawl (solo webs oficiales de empresa)
+- **Fecha:** 2026-05-29 (actualizado 2026-05-30) · **Estado:** Aceptada (alcance reducido)
+- **Decisión actualizada:** Firecrawl se usa SOLO para inspeccionar la web oficial de la empresa (no los portales de empleo). El scraping de InfoJobs/Indeed se ha eliminado por ToS.
+- **Uso actual:** `web_inspector.py` visita la web pública de cada empresa para detectar HTTPS, reservas, píxeles → inputs para el scoring Digital y el call_script de Empleo.
+- **Trade-offs:** Solo se extrae lo disponible públicamente en la web oficial de la empresa.
 
 ---
+
+### ADR-004 · Fuente de empleo → Agregador con licencia comercial (producción)
+- **Fecha:** 2026-05-30 · **Estado:** Pendiente de confirmar proveedor
+- **Contexto:** El scraping de InfoJobs/Indeed viola sus ToS. La API oficial de InfoJobs prohíbe el uso comercial de los datos para contactar empresas fuera de la plataforma.
+- **Decisión:** Para producción, usar un agregador de empleo con licencia comercial explícita (TheirStack, LoopCV, o equivalente). La licencia ampara el uso de los datos para identificar empresas con necesidad activa de contratación y contactarlas con una oferta de servicio ETT.
+- **Justificación técnica:** Sin mantenimiento de anti-bot, datos enriquecidos (repost_count, first_seen), multi-portal por diseño.
+- **Justificación de negocio:** Coste de licencia (~$100-300/mes) << coste de proxies + tiempo de ingeniería + riesgo legal del scraping.
+- **Alternativas descartadas:**
+  - *Scraping de portales*: ToS prohíben uso comercial; riesgo legal real en producción
+  - *API InfoJobs en producción*: sus condiciones prohíben redistribución comercial del contenido
+- **⚠️ Nota legal:** El uso de datos de vacantes para contactar a empresas bajo "interés legítimo LSSI/RGPD" es un marco A VALIDAR CON UN ABOGADO antes del primer cliente de pago. Esta decisión refleja la dirección técnica, no un dictamen legal.
+
+---
+
+### ADR-005 · API InfoJobs (validación interna únicamente)
+- **Fecha:** 2026-05-30 · **Estado:** Aceptada
+- **Contexto:** Antes de comprometerse con el coste de un agregador con licencia, se necesita validar que el scoring de "vacante caliente" produce leads que una ETT compraría.
+- **Decisión:** Usar la API oficial de InfoJobs (registro como developer, HTTP Basic auth) SOLO para validación interna del modelo de scoring. Todos los leads en este modo se marcan `uso="solo_validacion_interna"` y NUNCA entran en un flujo de contacto comercial.
+- **Regla dura:** Los leads obtenidos con la API de InfoJobs en modo `validation` NO se pueden usar para contactar empresas. Los ToS de InfoJobs lo prohíben explícitamente. Esta distinción está forzada en el código (`JobSourceAdapter`): el modo `validation` marca cada lead con `uso="solo_validacion_interna"` y el modo `production` usa el agregador con licencia.
+- **⚠️ Nota legal:** Igual que ADR-004 — a validar con abogado antes de producción.
+
+---
+
+### ADR-006 · Enriquecimiento de contacto solo a nivel empresa (no personas físicas)
+- **Fecha:** 2026-05-30 · **Estado:** Aceptada
+- **Decisión:** El enriquecimiento de contacto se limita al buzón GENÉRICO de la empresa (info@, rrhh@, contacto@dominio). Es dato de la persona jurídica, no de una persona física.
+- **Explícitamente PROHIBIDO en el código:**
+  - Extraer o inferir emails personales (nombre.apellido@empresa)
+  - Teléfonos directos de individuos
+  - Perfiles de LinkedIn de personas físicas
+  - Waterfall enrichment (Apollo, ZoomInfo, Hunter.io, etc.) de personas
+- **Motivo:** `nombre.apellido@empresa` y móviles personales son datos personales bajo RGPD Art. 4(1). El buzón genérico de empresa no es dato de persona física identificable → fuera del ámbito del RGPD personal.
+- **Consecuencia práctica:** El lead se entrega a nivel empresa; la ETT preguntará por el responsable al llamar. Esto es el modelo de negocio estándar de las ETTs.
+- **⚠️ Nota legal:** El marco de "interés legítimo" para contactar empresas vía buzón genérico es razonable pero A VALIDAR CON UN ABOGADO antes del primer cliente de pago.
+
+---
+
+## Herramientas descartadas (con motivo)
+
+| Herramienta | Para qué | Motivo del descarte | Fecha |
+|-------------|----------|---------------------|-------|
+| Scraper Apify Google Maps | Extracción de negocios locales | ToS Google Maps prohíbe scraping; riesgo de baneo/suspensión | 2026-05-30 |
+| Firecrawl para portales de empleo | Bypass anti-bot InfoJobs/Indeed | ToS portales prohíben scraping; RGPD con emails extraídos | 2026-05-30 |
+| Apify actores InfoJobs/Indeed | Volumen masivo de ofertas | Mismo motivo que Firecrawl; actor terceros sin garantía | 2026-05-30 |
+| Waterfall enrichment (Apollo/ZoomInfo) | Datos de contacto personales | Datos de personas físicas bajo RGPD; no permitido en este modelo | 2026-05-30 |
+| LinkedIn scraping / Voyager API | Perfiles de responsables | ToS LinkedIn + RGPD estricto sobre datos personales | 2026-05-30 |
 
 ## 5. Áreas de mejora / Deuda técnica
 
