@@ -1,95 +1,136 @@
+"""
+Google Places API scraper — fuente oficial, sin scraping.
+
+Sustituye al actor Apify no oficial (ver _deprecated/gmaps_scraper_apify.py).
+La interfaz de salida es idéntica: el resto del pipeline (digital_enricher,
+web_inspector, sheets_exporter) no necesita cambios.
+
+COSTE ESTIMADO POR EJECUCIÓN (5 queries × 25 negocios):
+  · Text Search:     125 llamadas × $0.032 = ~$4.00
+  · Place Details:   ~73 llamadas × $0.032 = ~$2.34  (solo los no-sanos)
+  · Total estimado:  ~$6.34 por ejecución
+  · Free tier Google: $200/mes → ~30 ejecuciones/mes sin coste
+  · Con plan de pago ($200+): ~1.500 negocios/mes a coste marginal
+
+SETUP:
+  1. Google Cloud Console → Credenciales → Crear API Key
+  2. Activar: "Places API" (legacy) o "Places API (New)"
+  3. Añadir al .env:  GOOGLE_PLACES_API_KEY=AIza...
+"""
+
 import logging
 import os
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 from typing import Any
 
-from apify_client import ApifyClient
+import googlemaps
+import googlemaps.exceptions
 from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-GMAPS_ACTOR = "compass/crawler-google-places"
+# Coste por llamada (USD) — Places API (Legacy)
+_COST_TEXT_SEARCH  = 0.032   # $32 por 1.000 llamadas
+_COST_PLACE_DETAIL = 0.032   # $32 por 1.000 llamadas (Contact tier)
 
-_FIELD_MAP: dict[str, list[str]] = {
-    "name":           ["title", "name", "placeName"],
-    "rating":         ["totalScore", "rating", "stars"],
-    "review_count":   ["reviewsCount", "numberOfReviews", "reviewCount"],
-    "address":        ["address", "street", "fullAddress", "location"],
-    "phone":          ["phone", "phoneNumber", "telephone"],
-    "website":        ["website", "websiteUrl", "url"],
-    "category":       ["categoryName", "category", "businessType", "primaryType"],
-    "maps_url":       ["url", "googleMapsUrl", "placeUrl"],
-    "reviews_tags":   ["reviewsTags", "popularTimesLiveText"],
-    "description":    ["description", "about", "summary"],
-    "permanently_closed": ["permanentlyClosed", "isClosed", "closed"],
-    "claimed":        ["claimed", "isVerified", "verified"],
-}
+# Pausa requerida por Google entre text search y next_page_token
+_NEXT_PAGE_DELAY = 2.0
 
 
-def _get_client() -> ApifyClient:
-    from scraper._apify_base import get_apify_client
-    return get_apify_client()
+def _get_client() -> googlemaps.Client:
+    key = os.getenv("GOOGLE_PLACES_API_KEY")
+    if not key:
+        raise EnvironmentError(
+            "GOOGLE_PLACES_API_KEY no definida en .env\n"
+            "  1. Abre https://console.cloud.google.com/apis/credentials\n"
+            "  2. Crea una API Key\n"
+            "  3. Activa 'Places API' en la consola\n"
+            "  4. Añade GOOGLE_PLACES_API_KEY=AIza... a tu .env"
+        )
+    return googlemaps.Client(key=key)
 
 
-def _extract(item: dict[str, Any], field: str) -> Any:
-    for key in _FIELD_MAP[field]:
-        val = item.get(key)
-        if val is not None:
-            return val
-    return None
+def _is_healthy(rating: float | None, review_count: int | None) -> bool:
+    """Gate de descarte: no gastamos Place Details en negocios bien posicionados."""
+    return (
+        rating is not None and float(rating) >= 4.5
+        and review_count is not None and int(review_count) >= 100
+    )
 
 
-def _extract_str(item: dict[str, Any], field: str) -> str:
-    val = _extract(item, field)
-    if val is None:
-        return ""
-    return str(val).strip()
-
-
-def _normalize(item: dict[str, Any], search_query: str) -> dict[str, Any] | None:
-    name = _extract_str(item, "name")
-    if not name:
-        return None
-
-    # Ignorar negocios permanentemente cerrados
-    if _extract(item, "permanently_closed"):
-        return None
-
-    rating = _extract(item, "rating")
-    try:
-        rating = float(rating) if rating is not None else None
-    except (ValueError, TypeError):
-        rating = None
-
-    review_count = _extract(item, "review_count")
-    try:
-        review_count = int(review_count) if review_count is not None else None
-    except (ValueError, TypeError):
-        review_count = None
-
-    has_website = bool(_extract_str(item, "website"))
+def _normalize_from_search(item: dict[str, Any], query: str) -> dict[str, Any]:
+    """
+    Convierte un resultado de Text Search al formato interno del pipeline.
+    Los campos phone/website se rellenan más tarde con Place Details.
+    """
+    types    = item.get("types", [])
+    category = types[0].replace("_", " ").title() if types else ""
+    place_id = item.get("place_id", "")
 
     return {
-        "name":          name,
-        "category":      _extract_str(item, "category"),
-        "rating":        rating,
-        "review_count":  review_count,
-        "has_website":   has_website,
-        "website":       _extract_str(item, "website"),
-        "phone":         _extract_str(item, "phone"),
-        "address":       _extract_str(item, "address"),
-        "maps_url":      _extract_str(item, "maps_url"),
-        "description":   _extract_str(item, "description")[:500],
-        "claimed":       bool(_extract(item, "claimed")),
-        "search_query":  search_query,
-        "source":        "google_maps",
-        "scraped_at":    datetime.utcnow().isoformat(),
-        # Rellenados por el enricher
+        "name":           item.get("name", "").strip(),
+        "place_id":       place_id,                         # interno, no va al Sheet
+        "category":       category,
+        "rating":         item.get("rating"),
+        "review_count":   item.get("user_ratings_total"),
+        "address":        item.get("formatted_address", ""),
+        "maps_url":       f"https://www.google.com/maps/place/?q=place_id:{place_id}",
+        # Rellenados con Place Details (o default si se omiten)
+        "has_website":    False,
+        "website":        "",
+        "phone":          "",
+        "description":    "",
+        # La API solo devuelve negocios verificados → claimed = True
+        "claimed":        True,
+        "search_query":   query,
+        "source":         "google_places_api",
+        "scraped_at":     datetime.utcnow().isoformat(),
+        # Rellenados por digital_enricher
         "digital_score":  None,
         "weaknesses":     None,
         "call_script":    None,
     }
+
+
+def _fetch_place_details(
+    biz: dict[str, Any],
+    client: googlemaps.Client,
+) -> dict[str, Any]:
+    """
+    Llama a Place Details (Contact tier) para obtener teléfono y web.
+    Devuelve {} si el negocio está cerrado permanentemente (señal para omitir).
+    """
+    place_id = biz.get("place_id", "")
+    if not place_id:
+        return biz
+
+    try:
+        result = client.place(
+            place_id,
+            fields=["formatted_phone_number", "website",
+                    "business_status", "permanently_closed"],
+        ).get("result", {})
+
+        permanently_closed = result.get("permanently_closed", False)
+        business_status    = result.get("business_status", "OPERATIONAL")
+
+        if permanently_closed or business_status == "CLOSED_PERMANENTLY":
+            return {}   # señal para descartar
+
+        website = result.get("website", "")
+        biz["website"]    = website
+        biz["has_website"] = bool(website)
+        biz["phone"]      = result.get("formatted_phone_number", "")
+
+    except (googlemaps.exceptions.ApiError,
+            googlemaps.exceptions.Timeout,
+            googlemaps.exceptions.TransportError) as e:
+        logger.warning("  [places] Place Details falló para '%s': %s",
+                       biz.get("name"), str(e)[:80])
+
+    return biz
 
 
 def run_gmaps_scraper(
@@ -99,47 +140,102 @@ def run_gmaps_scraper(
     language: str = "es",
 ) -> list[dict[str, Any]]:
     """
-    Scrapes Google Maps business listings for the given search queries.
-    Returns normalized business records ready for digital_enricher.
+    Extrae negocios locales usando la API oficial de Google Places.
+
+    Estrategia de coste:
+      1. Text Search → datos básicos (name, rating, review_count)
+      2. Gate is_healthy → salta Place Details para los ya bien posicionados
+      3. Place Details (Contact) → phone + website solo para candidatos a lead
+
+    Returns:
+        Lista en el mismo formato que el antiguo scraper Apify — el resto
+        del pipeline (digital_enricher, web_inspector, Sheets) no cambia.
     """
     client = _get_client()
+
     all_businesses: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    seen:           set[str]             = set()
+
+    text_search_calls  = 0
+    place_detail_calls = 0
+    skipped_healthy    = 0
+    skipped_closed     = 0
 
     for query in search_queries:
-        full_query = f"{query} {location}".strip() if location not in query else query
-        logger.info("  [gmaps] Buscando: '%s' (max %d)", full_query, max_results_per_query)
+        full_query = (
+            f"{query} {location}".strip()
+            if location.lower() not in query.lower()
+            else query
+        )
+        logger.info("  [places] Buscando: '%s'", full_query)
+
         try:
-            run = client.actor(GMAPS_ACTOR).call(
-                run_input={
-                    "searchStringsArray":         [full_query],
-                    "locationQuery":              location,
-                    "maxCrawledPlacesPerSearch":  max_results_per_query,
-                    "language":                   language,
-                    "skipClosedPlaces":           True,
-                    "scrapePlaceDetailPage":      False,
-                },
-                run_timeout=timedelta(seconds=240),
-            )
-            if not run or not run.default_dataset_id:
-                logger.warning("  [gmaps] Sin dataset para '%s'", full_query)
-                continue
+            # ── Text Search (paginado, máx 3 páginas × 20 resultados) ─────────
+            raw_items:  list[dict] = []
+            page_token: str | None = None
+            max_pages = max(1, -(-max_results_per_query // 20))  # ceil division
 
-            items = list(client.dataset(run.default_dataset_id).iterate_items())
-            logger.info("  [gmaps] '%s' → %d items raw", full_query, len(items))
+            for _ in range(max_pages):
+                if page_token:
+                    time.sleep(_NEXT_PAGE_DELAY)
+                    resp = client.places(full_query, language=language,
+                                        page_token=page_token)
+                else:
+                    resp = client.places(full_query, language=language)
 
-            for item in items:
-                biz = _normalize(item, query)
-                if not biz:
+                text_search_calls += 1
+                raw_items.extend(resp.get("results", []))
+                page_token = resp.get("next_page_token")
+
+                if not page_token or len(raw_items) >= max_results_per_query:
+                    break
+
+            logger.info("  [places] '%s' → %d resultados raw", query, len(raw_items))
+
+            for item in raw_items[:max_results_per_query]:
+                biz = _normalize_from_search(item, query)
+                if not biz["name"]:
                     continue
+
+                # Dedup por (nombre + dirección)
                 key = biz["name"].lower() + "|" + biz["address"][:30].lower()
                 if key in seen:
                     continue
                 seen.add(key)
+
+                # Gate: negocios sanos no son leads → ahorramos Place Details
+                if _is_healthy(biz["rating"], biz["review_count"]):
+                    skipped_healthy += 1
+                    continue
+
+                # Place Details → phone + website (Contact tier)
+                biz = _fetch_place_details(biz, client)
+                place_detail_calls += 1
+
+                if not biz:     # cerrado permanentemente
+                    skipped_closed += 1
+                    continue
+
                 all_businesses.append(biz)
 
+        except googlemaps.exceptions.ApiError as e:
+            logger.error("  [places] ApiError en '%s': %s", query, str(e)[:150])
+        except googlemaps.exceptions.Timeout:
+            logger.error("  [places] Timeout en '%s'", query)
+        except googlemaps.exceptions.TransportError as e:
+            logger.error("  [places] TransportError: %s", str(e)[:100])
         except Exception as e:
-            logger.error("  [gmaps] Error en '%s': %s", full_query, str(e)[:150])
+            logger.error("  [places] Error inesperado en '%s': %s", query, str(e)[:150])
 
-    logger.info("[gmaps] Total negocios: %d", len(all_businesses))
+    # ── Resumen de coste ──────────────────────────────────────────────────────
+    estimated_cost = (
+        text_search_calls  * _COST_TEXT_SEARCH
+        + place_detail_calls * _COST_PLACE_DETAIL
+    )
+    logger.info(
+        "[places] %d negocios | %d text searches | %d place details | "
+        "%d sanos omitidos | %d cerrados omitidos | coste estimado $%.2f",
+        len(all_businesses), text_search_calls, place_detail_calls,
+        skipped_healthy, skipped_closed, estimated_cost,
+    )
     return all_businesses

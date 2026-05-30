@@ -145,8 +145,8 @@ def inspect_websites(
 
     Añade campos web_* + web_score a cada negocio.
     """
-    from scraper.firecrawl_scraper import get_client
-    app = get_client()
+    from scraper._firecrawl_base import get_firecrawl_client
+    app = get_firecrawl_client()
 
     # Ordenar por maps_score desc y tomar top_n
     candidates = sorted(businesses, key=lambda b: b.get("maps_score", 0), reverse=True)[:top_n]
