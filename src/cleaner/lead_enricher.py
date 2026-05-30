@@ -145,6 +145,10 @@ def build_lead_prompt(batch: list[dict[str, Any]]) -> str:
         lines.append(f"Ubicación: {job.get('location', '')}")
         lines.append(f"Descripción: {job.get('description', '')[:1200]}")
         lines.append(f"Requisitos: {job.get('requirements', '')[:600]}")
+        # Señales de urgencia (del JobSourceAdapter) — ayudan al scoring
+        u_score = job.get("urgency_score")
+        if u_score:
+            lines.append(f"[Urgencia empresa: score={u_score} | días_abierta={job.get('posted_days_ago')} | republicaciones={job.get('repost_count')}]")
         lines.append("")
     return "\n".join(lines)
 
@@ -192,6 +196,9 @@ def merge_results(
             "url":               job.get("url", ""),
             "query":             job.get("query", ""),
             "scraped_at":        job.get("scraped_at", ""),
+            # Scoring previo al enriquecimiento (JobSourceAdapter)
+            "urgency_score":     job.get("urgency_score", 0),
+            "icp_score":         job.get("icp_score", 50),
             # Enriquecimiento IA
             "is_lead":           meta.get("is_lead", False),
             "lead_score":        meta.get("lead_score", "discard"),
@@ -203,6 +210,10 @@ def merge_results(
             # LOPD: sanitizado
             "contact_email":     sanitize_email_lopd(meta.get("contact_email")),
             "outreach_email":    meta.get("outreach_email", ""),
+            # Marco legal (del JobSourceAdapter)
+            "fuente_dato":       job.get("fuente_dato", ""),
+            "uso":               job.get("uso", ""),
+            "rgpd_ttl_days":     job.get("rgpd_ttl_days", 90),
         })
     return merged
 

@@ -112,41 +112,17 @@ def step_scrape(cfg: Any) -> Path:
     logger.info("── PASO 1/3: Scraping [%s] (%d queries, max %d) ──",
                 source, len(queries), max_res)
 
-    if source == "firecrawl":
-        jobs = _dedup(_run_firecrawl(cfg, max_res))[:max_res]
-
-    elif source == "apify":
-        jobs = _dedup(_run_apify(cfg, max_res))[:max_res]
-
-    elif source == "both":
-        # Firecrawl: calidad (descripciones completas) · Apify: volumen (más resultados)
-        # Cada uno aporta hasta max_res/2; si uno falla, el otro cubre
-        fc_target   = max_res // 2
-        apify_target = max_res - fc_target
-        logger.info("  Modo 'both': Firecrawl → %d · Apify → %d", fc_target, apify_target)
-
-        jobs_fc    = _run_firecrawl(cfg, fc_target)
-        jobs_apify = _run_apify(cfg, apify_target)
-
-        # Firecrawl tiene prioridad en duplicados (mejores descripciones)
-        merged = _dedup(jobs_fc + jobs_apify)
-        jobs   = merged[:max_res]
-
-        fc_count    = sum(1 for j in jobs if not j["source"].startswith("apify"))
-        apify_count = sum(1 for j in jobs if j["source"].startswith("apify"))
-        logger.info("  Resultado 'both': %d Firecrawl + %d Apify = %d únicos",
-                    fc_count, apify_count, len(jobs))
-
-    elif source == "milanuncios":
-        from scraper.cars_scraper import run_cars_scraper
-        cs = cfg.car_scraper
-        jobs = run_cars_scraper(
-            car_models=cs.car_models,
-            max_results_per_model=cs.max_results_per_model,
-            price_min=cs.price_min,
-            price_max=cs.price_max,
-            seller_type=cs.seller_type,
-        )
+    # ── Fuentes activas ───────────────────────────────────────────────────────
+    if source == "job_adapter":
+        # B2B empleo vía JobSourceAdapter (mock / validation / production)
+        # Configura JOB_SOURCE_MODE en .env; ver src/scraper/job_source_adapter.py
+        from scraper.job_source_adapter import create_adapter
+        adapter   = create_adapter()
+        ij_q      = cfg.scraper.infojobs_queries or queries
+        ind_q     = cfg.scraper.indeed_queries   or queries
+        all_q     = list(dict.fromkeys(ij_q + ind_q))   # dedup preservando orden
+        jobs_raw  = adapter.fetch_jobs(all_q, cfg.scraper.location, max_res // max(len(all_q), 1))
+        jobs = _dedup(jobs_raw)[:max_res]
 
     elif source == "gmaps":
         from scraper.gmaps_scraper import run_gmaps_scraper
@@ -158,15 +134,46 @@ def step_scrape(cfg: Any) -> Path:
             language=gs.language,
         )
 
+    # ── Fuentes deprecated (código en _deprecated/) ───────────────────────────
+    # Estas rutas siguen funcionando mientras haya configs que las usen,
+    # pero no se recomienda para nuevos clientes.
+
+    elif source in ("firecrawl", "apify", "both"):
+        logger.warning(
+            "⚠️  source='%s' usa scrapers deprecados (ToS riesgo). "
+            "Migra a source='job_adapter' con JOB_SOURCE_MODE en .env.",
+            source,
+        )
+        if source == "firecrawl":
+            jobs = _dedup(_run_firecrawl(cfg, max_res))[:max_res]
+        elif source == "apify":
+            jobs = _dedup(_run_apify(cfg, max_res))[:max_res]
+        else:
+            fc_target    = max_res // 2
+            apify_target = max_res - fc_target
+            jobs = _dedup(_run_firecrawl(cfg, fc_target) + _run_apify(cfg, apify_target))[:max_res]
+
     elif source == "indeed":
+        logger.warning("⚠️  source='indeed' usa scraper Playwright deprecado.")
         from scraper.indeed_scraper import run_indeed_scraper
         jobs = asyncio.run(run_indeed_scraper(
             max_pages_per_query=cfg.scraper.max_pages_per_query,
             max_detail_pages=max_res,
         ))
 
+    elif source == "milanuncios":
+        raise ValueError(
+            "source='milanuncios' (vertical Coches) está CONGELADA. "
+            "Ver _frozen_coches/README.md para condiciones de reactivación."
+        )
+
     else:
-        raise ValueError(f"Fuente desconocida: '{source}'. Usa 'firecrawl', 'apify', 'both', 'milanuncios' o 'gmaps'.")
+        raise ValueError(
+            f"Fuente desconocida: '{source}'.\n"
+            "  B2B empleo:        source: job_adapter  (+ JOB_SOURCE_MODE en .env)\n"
+            "  Auditoría digital: source: gmaps\n"
+            "  Coches:            CONGELADA — ver _frozen_coches/README.md"
+        )
 
     if not jobs:
         raise RuntimeError("El scraper no devolvió datos. Abortando.")
