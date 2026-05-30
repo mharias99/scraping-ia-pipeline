@@ -31,7 +31,6 @@ HUBSPOT_COLUMNS = {
 
 PIPEDRIVE_COLUMNS = {
     "company":        "Organization Name",
-    "title":          "Deal Title",
     "location":       "Address",
     "company_sector": "Label",
     "lead_score":     "Stage",
@@ -116,9 +115,18 @@ def export_pipedrive(min_score: str = "medium") -> Path:
     return path
 
 
-def run_crm_export(min_score: str = "medium") -> dict[str, Path]:
+def run_crm_export(
+    min_score: str = "medium",
+    pipeline_type: str = "b2b_leads",
+) -> dict[str, Path]:
+    """Solo genera CSVs de CRM para el pipeline B2B (tiene columnas HubSpot/Pipedrive)."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    hs = export_hubspot(min_score)
+    if pipeline_type != "b2b_leads":
+        logger.info("[crm] Export CRM omitido para pipeline '%s' (solo B2B)", pipeline_type)
+        empty = OUTPUT_DIR / f"crm_skip_{pipeline_type}_{date.today().strftime('%Y%m%d')}.txt"
+        empty.write_text(f"CRM export no aplica para {pipeline_type}\n")
+        return {"hubspot": empty, "pipedrive": empty}
+    hs  = export_hubspot(min_score)
     pd_ = export_pipedrive(min_score)
     return {"hubspot": hs, "pipedrive": pd_}
 

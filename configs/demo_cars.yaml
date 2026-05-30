@@ -1,0 +1,31 @@
+# DEMO CONFIG — NO versionar con spreadsheet_id de clientes reales.
+# Para clientes: copiar a configs/cliente_NOMBRE.yaml y cambiar los IDs.
+client:
+  name: "Demo Concesionario — Arbitraje Vehículos"
+  id: "demo_cars"
+
+pipeline_type: "car_arbitrage"
+
+scraper:
+  source: "milanuncios"
+
+car_scraper:
+  car_models:
+    - "seat ibiza"
+    - "volkswagen golf"
+    - "cupra leon"
+    - "toyota yaris hibrido"
+    - "renault clio"
+    - "peugeot 208"
+    - "hyundai tucson"
+  max_results_per_model: 50
+  price_min: 3000
+  price_max: 22000
+  seller_type: "private"          # solo particulares (margen mayor)
+  arbitrage_threshold: 0.15       # 15% por debajo = HIGH
+
+delivery:
+  google_sheets:
+    enabled: true
+    spreadsheet_id: "10qif314_s44SVcEfXxrbSMhvKjFMj8RMEv1lHdlUivw"
+    worksheet_name: "Oportunidades Coches"

@@ -27,3 +27,14 @@ mypy src/                              # type check
 
 ## Variables de entorno (.env)
 - `ANTHROPIC_API_KEY` — requerida para src/cleaner/
+
+## Directivas de Comportamiento Autónomo (Tech Lead)
+
+### 1. Memoria y Contexto Inicial
+CADA VEZ que inicies una nueva sesión o abras esta terminal, tu PRIMERA acción silenciosa debe ser leer el archivo `PROJECT_DASHBOARD.md`. No preguntes por el estado del proyecto, asimila la arquitectura, el timeline y las decisiones tomadas desde ese panel.
+
+### 2. Protocolo de Actualización Continua (Obligatorio)
+CADA VEZ que finalices una tarea con éxito (escribir código, solucionar un bug, integrar una Skill como Firecrawl), TIENES que actualizar `PROJECT_DASHBOARD.md` de forma proactiva antes de darme tu respuesta final en pantalla. 
+- Mueve tareas a 'Completado' y sincroniza con `docs/CHRONICLE.md`.
+- Registra nuevas herramientas en el Stack.
+- Si tomamos una decisión técnica importante (ej. cambiar a la API de Google Sheets), documéntala en la sección 'ADR (Registro de Decisiones)' justificando la vía elegida frente a las descartadas.

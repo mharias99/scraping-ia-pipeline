@@ -6,7 +6,7 @@ import anthropic
 import pandas as pd
 import pytest
 
-from cleaner.enricher import (
+from cleaner.legacy.enricher import (
     build_dataframe,
     build_prompt,
     enrich_batch,
@@ -139,7 +139,7 @@ class TestSaveCsv:
         self, tmp_path: Path, sample_merged_records: list
     ) -> None:
         df = build_dataframe(sample_merged_records)
-        with patch("cleaner.enricher.OUTPUT_DIR", tmp_path):
+        with patch("cleaner.legacy.enricher.OUTPUT_DIR", tmp_path):
             path = save_csv(df)
         assert path.exists()
         assert path.suffix == ".csv"
@@ -148,7 +148,7 @@ class TestSaveCsv:
         self, tmp_path: Path, sample_merged_records: list
     ) -> None:
         df = build_dataframe(sample_merged_records)
-        with patch("cleaner.enricher.OUTPUT_DIR", tmp_path):
+        with patch("cleaner.legacy.enricher.OUTPUT_DIR", tmp_path):
             path = save_csv(df)
         loaded = pd.read_csv(path)
         assert "Unnamed: 0" not in loaded.columns
@@ -157,7 +157,7 @@ class TestSaveCsv:
         self, tmp_path: Path, sample_merged_records: list
     ) -> None:
         df = build_dataframe(sample_merged_records)
-        with patch("cleaner.enricher.OUTPUT_DIR", tmp_path):
+        with patch("cleaner.legacy.enricher.OUTPUT_DIR", tmp_path):
             path = save_csv(df)
         assert "dataset_" in path.name
 
@@ -165,7 +165,7 @@ class TestSaveCsv:
         self, tmp_path: Path, sample_merged_records: list
     ) -> None:
         df = build_dataframe(sample_merged_records)
-        with patch("cleaner.enricher.OUTPUT_DIR", tmp_path):
+        with patch("cleaner.legacy.enricher.OUTPUT_DIR", tmp_path):
             path = save_csv(df)
         assert len(pd.read_csv(path)) == len(df)
 
@@ -202,7 +202,7 @@ class TestEnrichBatch:
             make_anthropic_response(sample_enriched),
         ]
 
-        with patch("cleaner.enricher.time.sleep"):
+        with patch("cleaner.legacy.enricher.time.sleep"):
             result = enrich_batch(client, sample_raw_batch)
 
         assert result == sample_enriched
@@ -216,7 +216,7 @@ class TestEnrichBatch:
             anthropic.RateLimitError
         )
 
-        with patch("cleaner.enricher.time.sleep"):
+        with patch("cleaner.legacy.enricher.time.sleep"):
             result = enrich_batch(client, sample_raw_batch, attempt=4)
 
         assert result == []
@@ -242,6 +242,6 @@ class TestEnrichBatch:
 class TestRunEnricher:
     def test_raises_if_no_api_key(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
-            with patch("cleaner.enricher.os.getenv", return_value=None):
+            with patch("cleaner.legacy.enricher.os.getenv", return_value=None):
                 with pytest.raises(EnvironmentError, match="ANTHROPIC_API_KEY"):
                     run_enricher()

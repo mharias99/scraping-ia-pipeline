@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from scraper.quotes_scraper import (
+from scraper.legacy.quotes_scraper import (
     has_next_page,
     parse_quotes,
     save_raw,
@@ -97,7 +97,7 @@ class TestSaveRaw:
         data = [{"text": "Hello", "author": "World", "tags": ["a"]}]
         output = tmp_path / "raw" / "quotes_raw.json"
 
-        with patch("scraper.quotes_scraper.OUTPUT_PATH", output):
+        with patch("scraper.legacy.quotes_scraper.OUTPUT_PATH", output):
             save_raw(data)
 
         assert output.exists()
@@ -106,7 +106,7 @@ class TestSaveRaw:
 
     def test_creates_parent_directory(self, tmp_path: Path) -> None:
         output = tmp_path / "nested" / "deep" / "quotes.json"
-        with patch("scraper.quotes_scraper.OUTPUT_PATH", output):
+        with patch("scraper.legacy.quotes_scraper.OUTPUT_PATH", output):
             save_raw([{"text": "x", "author": "y", "tags": []}])
         assert output.exists()
 
@@ -114,7 +114,7 @@ class TestSaveRaw:
         output = tmp_path / "quotes_raw.json"
         output.write_text(json.dumps([{"old": "data"}]))
 
-        with patch("scraper.quotes_scraper.OUTPUT_PATH", output):
+        with patch("scraper.legacy.quotes_scraper.OUTPUT_PATH", output):
             save_raw([{"text": "new", "author": "data", "tags": []}])
 
         loaded = json.loads(output.read_text())

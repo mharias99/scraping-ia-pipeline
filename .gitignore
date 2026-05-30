@@ -7,6 +7,8 @@ __pycache__/
 .mypy_cache/
 data/raw/*
 data/output/*
+data/seen/
+data/web/stats.json
 !data/raw/.gitkeep
 !data/output/.gitkeep
 !data/sample/

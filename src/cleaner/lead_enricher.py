@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 RAW_PATH    = Path("data/raw/indeed_raw.json")
 OUTPUT_DIR  = Path("data/output")
 BATCH_SIZE  = 5   # descripciones largas → batches pequeños
-MAX_RETRIES = 3
 
 # ── Regex LOPD: emails personales a filtrar ───────────────────────────────────
 PERSONAL_EMAIL_DOMAINS = re.compile(
@@ -102,11 +101,21 @@ LEAD_TOOL = {
                             "type": ["string", "null"],
                             "description": "Corporate email only. null if personal domain or not found (LOPD)",
                         },
+                        "outreach_email": {
+                            "type": "string",
+                            "description": (
+                                "Personalized cold outreach email in Spanish (subject + body, max 5 sentences). "
+                                "MUST reference the specific job title and company name. "
+                                "Propose automating exactly what they're trying to hire a human for. "
+                                "Format: 'Asunto: [subject]\\n\\n[body]'. "
+                                "Tone: direct, confident, no fluff. Empty string if lead_score is discard."
+                            ),
+                        },
                     },
                     "required": [
                         "index", "is_lead", "lead_score", "lead_reason",
                         "automation_signals", "company_sector", "company_size",
-                        "urgency", "contact_email",
+                        "urgency", "contact_email", "outreach_email",
                     ],
                 },
             }
@@ -145,7 +154,9 @@ def enrich_batch(
     batch: list[dict[str, Any]],
     attempt: int = 1,
 ) -> list[dict[str, Any]]:
-    try:
+    from cleaner._claude_retry import call_with_retry
+
+    def _call() -> list[dict[str, Any]]:
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=2048,
@@ -158,27 +169,7 @@ def enrich_batch(
             raise ValueError("No tool_use block in response.")
         return tool_block.input["leads"]
 
-    except anthropic.RateLimitError:
-        if attempt > MAX_RETRIES:
-            logger.error("Rate limit: max retries alcanzado. Saltando batch.")
-            return []
-        wait = 2 ** attempt
-        logger.warning("Rate limit. Reintentando en %ds...", wait)
-        time.sleep(wait)
-        return enrich_batch(client, batch, attempt + 1)
-
-    except anthropic.BadRequestError as e:
-        if "credit balance is too low" in str(e):
-            raise RuntimeError(
-                "Anthropic API: saldo insuficiente. "
-                "Recarga en https://console.anthropic.com/settings/billing"
-            ) from e
-        logger.error("BadRequestError: %s", e)
-        raise
-
-    except anthropic.APIError as e:
-        logger.error("APIError: %s", type(e).__name__)
-        raise
+    return call_with_retry(_call, context=f"lead batch ({len(batch)} ofertas)", attempt=attempt)
 
 
 def merge_results(
@@ -202,15 +193,16 @@ def merge_results(
             "query":             job.get("query", ""),
             "scraped_at":        job.get("scraped_at", ""),
             # Enriquecimiento IA
-            "is_lead":           meta["is_lead"],
-            "lead_score":        meta["lead_score"],
-            "lead_reason":       meta["lead_reason"],
-            "automation_signals": ", ".join(meta.get("automation_signals", [])),
-            "company_sector":    meta["company_sector"],
-            "company_size":      meta["company_size"],
-            "urgency":           meta["urgency"],
+            "is_lead":           meta.get("is_lead", False),
+            "lead_score":        meta.get("lead_score", "discard"),
+            "lead_reason":       meta.get("lead_reason", ""),
+            "automation_signals": ", ".join(meta.get("automation_signals") or []),
+            "company_sector":    meta.get("company_sector", ""),
+            "company_size":      meta.get("company_size", "unknown"),
+            "urgency":           meta.get("urgency", "unknown"),
             # LOPD: sanitizado
             "contact_email":     sanitize_email_lopd(meta.get("contact_email")),
+            "outreach_email":    meta.get("outreach_email", ""),
         })
     return merged
 

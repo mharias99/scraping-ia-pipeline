@@ -14,10 +14,8 @@ Setup en 3 pasos:
 
 import logging
 import os
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any
-
 import gspread
 import pandas as pd
 from dotenv import load_dotenv
@@ -28,6 +26,7 @@ from gspread_formatting import (
     Color,
     TextFormat,
     format_cell_range,
+    format_cell_ranges,
     set_frozen,
 )
 
@@ -44,31 +43,67 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
 ]
 
-# Columnas que se exportan al Sheet (en este orden)
-EXPORT_COLUMNS = [
-    "lead_score",
-    "title",
-    "company",
-    "location",
-    "company_sector",
-    "company_size",
-    "urgency",
-    "automation_signals",
-    "lead_reason",
-    "contact_email",
-    "url",
-    "scraped_at",
+# ── Columnas por tipo de pipeline ────────────────────────────────────────────
+
+EXPORT_COLUMNS = [          # b2b_leads (default)
+    "lead_score", "title", "company", "location", "company_sector",
+    "company_size", "urgency", "automation_signals", "lead_reason",
+    "outreach_email", "contact_email", "url", "scraped_at",
 ]
 
-# Colores por score para resaltado visual
-SCORE_COLORS: dict[str, Color] = {
-    "high":    Color(0.722, 0.961, 0.698),   # verde suave
-    "medium":  Color(1.0,   0.953, 0.675),   # amarillo suave
-    "low":     Color(1.0,   0.894, 0.800),   # naranja suave
-    "discard": Color(0.937, 0.937, 0.937),   # gris claro
+EXPORT_COLUMNS_CARS = [     # car_arbitrage
+    "opportunity", "title", "price", "market_median", "price_delta_pct",
+    "year", "km", "location", "phone", "url", "model_query", "scraped_at",
+]
+
+EXPORT_COLUMNS_DIGITAL = [  # digital_audit V2
+    "priority", "name", "category", "digital_score", "maps_score", "web_score",
+    "rating", "review_count", "web_status", "web_https", "web_booking",
+    "web_pixel_meta", "web_pixel_ga", "phone", "address",
+    "weaknesses", "call_script", "maps_url", "scraped_at",
+]
+
+_COLUMNS_BY_TYPE: dict[str, list[str]] = {
+    "b2b_leads":    EXPORT_COLUMNS,
+    "car_arbitrage": EXPORT_COLUMNS_CARS,
+    "digital_audit": EXPORT_COLUMNS_DIGITAL,
 }
 
-HEADER_COLOR = Color(0.129, 0.533, 0.753)    # azul corporativo
+# ── Colores por score ─────────────────────────────────────────────────────────
+
+# Reutilizados para todos los pipelines: HIGH/high=verde, MEDIUM/medium=amarillo, etc.
+SCORE_COLORS: dict[str, Color] = {
+    "high":         Color(0.722, 0.961, 0.698),
+    "HIGH":         Color(0.722, 0.961, 0.698),
+    "medium":       Color(1.0,   0.953, 0.675),
+    "MEDIUM":       Color(1.0,   0.953, 0.675),
+    "low":          Color(1.0,   0.894, 0.800),
+    "LOW":          Color(1.0,   0.894, 0.800),
+    "discard":      Color(0.937, 0.937, 0.937),
+    "NORMAL":       Color(0.95,  0.95,  0.95),
+    "SOBREVALORADO": Color(0.937, 0.937, 0.937),
+    "UNKNOWN":      Color(0.937, 0.937, 0.937),
+}
+
+HEADER_COLOR = Color(0.129, 0.533, 0.753)
+
+# Opciones del dropdown de Estado (gestionado por el cliente, nunca sobreescrito)
+ESTADO_OPTIONS = [
+    "🔵 Pendiente",
+    "📞 Interesado",
+    "🔄 Seguimiento",
+    "❌ No interesado",
+    "✅ Cerrado",
+]
+
+# Colores para la columna Estado (resaltan el progreso de la llamada)
+ESTADO_COLORS: dict[str, Color] = {
+    "🔵 Pendiente":      Color(0.898, 0.937, 1.0),    # azul muy suave
+    "📞 Interesado":     Color(0.722, 0.961, 0.698),  # verde
+    "🔄 Seguimiento":    Color(1.0,   0.953, 0.675),  # amarillo
+    "❌ No interesado":  Color(0.937, 0.937, 0.937),  # gris
+    "✅ Cerrado":         Color(0.569, 0.820, 0.698),  # verde oscuro
+}
 
 
 # ── Autenticación ─────────────────────────────────────────────────────────────
@@ -95,13 +130,15 @@ def get_client() -> gspread.Client:
 def get_or_create_worksheet(
     spreadsheet: gspread.Spreadsheet,
     name: str,
+    num_cols: int | None = None,
 ) -> gspread.Worksheet:
+    cols = (num_cols or len(EXPORT_COLUMNS)) + 2
     try:
         ws = spreadsheet.worksheet(name)
         logger.info("Hoja existente encontrada: '%s'", name)
         return ws
     except WorksheetNotFound:
-        ws = spreadsheet.add_worksheet(title=name, rows=1000, cols=len(EXPORT_COLUMNS) + 2)
+        ws = spreadsheet.add_worksheet(title=name, rows=1000, cols=cols)
         logger.info("Hoja nueva creada: '%s'", name)
         return ws
 
@@ -118,12 +155,15 @@ def _col_letter(idx: int) -> str:
     return result
 
 
-def apply_formatting(ws: gspread.Worksheet, df: pd.DataFrame) -> None:
+def apply_formatting(
+    ws: gspread.Worksheet,
+    df: pd.DataFrame,
+    score_col: str = "lead_score",
+) -> None:
     try:
-        last_col = _col_letter(len(EXPORT_COLUMNS) - 1)
-        total_rows = len(df) + 1  # +1 header
+        last_col   = _col_letter(len(df.columns) - 1)
+        total_rows = len(df) + 1
 
-        # Cabecera azul + texto blanco + negrita
         format_cell_range(
             ws, f"A1:{last_col}1",
             CellFormat(
@@ -131,24 +171,24 @@ def apply_formatting(ws: gspread.Worksheet, df: pd.DataFrame) -> None:
                 textFormat=TextFormat(bold=True, foregroundColor=Color(1, 1, 1)),
             ),
         )
-
-        # Congelar fila de cabecera
         set_frozen(ws, rows=1)
 
-        # Colorear filas según lead_score
-        for row_idx, (_, row) in enumerate(df.iterrows(), start=2):
-            score = str(row.get("lead_score", "discard")).lower()
-            color = SCORE_COLORS.get(score, SCORE_COLORS["discard"])
-            format_cell_range(
-                ws, f"A{row_idx}:{last_col}{row_idx}",
-                CellFormat(backgroundColor=color),
+        fallback = SCORE_COLORS.get("discard", Color(0.9, 0.9, 0.9))
+        row_formats = [
+            (
+                f"A{row_idx}:{last_col}{row_idx}",
+                CellFormat(backgroundColor=SCORE_COLORS.get(
+                    str(row.get(score_col, "")).strip(),
+                    fallback,
+                )),
             )
-
+            for row_idx, (_, row) in enumerate(df.iterrows(), start=2)
+        ]
+        format_cell_ranges(ws, row_formats)
         logger.info("Formato visual aplicado (%d filas)", total_rows)
 
-    except Exception as e:
-        # El formato es opcional — no bloquea la exportación
-        logger.warning("Formato no aplicado (instala gspread-formatting): %s", e)
+    except (gspread.exceptions.APIError, gspread.exceptions.GSpreadException, ValueError) as e:
+        logger.warning("Formato visual no aplicado: %s — %s", type(e).__name__, e)
 
 
 # ── Export principal ──────────────────────────────────────────────────────────
@@ -166,17 +206,27 @@ def load_latest_leads() -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    # Seleccionar y ordenar columnas de exportación (ignorar las que no existan)
-    cols = [c for c in EXPORT_COLUMNS if c in df.columns]
-    df = df[cols].copy()
+def prepare_dataframe(
+    df: pd.DataFrame,
+    pipeline_type: str = "b2b_leads",
+) -> pd.DataFrame:
+    export_cols = _COLUMNS_BY_TYPE.get(pipeline_type, EXPORT_COLUMNS)
+    cols = [c for c in export_cols if c in df.columns]
+    df = df[cols].copy().fillna("")
 
-    # Rellenar NaN con cadena vacía para Sheets
-    df = df.fillna("")
+    # Ordenar según el campo de prioridad del pipeline
+    if pipeline_type == "b2b_leads":
+        order = {"high": 0, "medium": 1, "low": 2, "discard": 3}
+        df["_sort"] = df.get("lead_score", pd.Series(dtype=str)).map(order).fillna(4)
+    elif pipeline_type == "car_arbitrage":
+        order = {"HIGH": 0, "MEDIUM": 1, "NORMAL": 2, "SOBREVALORADO": 3, "UNKNOWN": 4}
+        df["_sort"] = df.get("opportunity", pd.Series(dtype=str)).map(order).fillna(4)
+    elif pipeline_type == "digital_audit":
+        order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+        df["_sort"] = df.get("priority", pd.Series(dtype=str)).map(order).fillna(3)
+    else:
+        df["_sort"] = 0
 
-    # Ordenar HIGH primero
-    score_order = {"high": 0, "medium": 1, "low": 2, "discard": 3}
-    df["_sort"] = df["lead_score"].map(score_order).fillna(4)
     df = df.sort_values("_sort").drop(columns=["_sort"]).reset_index(drop=True)
     return df
 
@@ -186,6 +236,7 @@ def export_to_sheets(
     spreadsheet_id: str,
     worksheet_name: str,
     client: gspread.Client,
+    pipeline_type: str = "b2b_leads",
 ) -> str:
     try:
         spreadsheet = client.open_by_key(spreadsheet_id)
@@ -196,29 +247,172 @@ def export_to_sheets(
             "hayas compartido la hoja con el email del Service Account."
         )
 
-    ws = get_or_create_worksheet(spreadsheet, worksheet_name)
-
-    # Limpiar contenido previo
+    ws = get_or_create_worksheet(spreadsheet, worksheet_name, num_cols=len(df.columns))
     ws.clear()
     logger.info("Hoja limpiada")
 
-    # Escribir cabecera + datos en una sola llamada (más eficiente)
     headers = list(df.columns)
     rows = [headers] + df.values.tolist()
     ws.update(rows, "A1")
     logger.info("Datos escritos: %d filas × %d columnas", len(df), len(headers))
 
-    # Añadir metadato de actualización en celda fuera de rango de datos
-    meta_col = _col_letter(len(headers) + 1)
+    meta_col = _col_letter(len(headers))
     ws.update_acell(f"{meta_col}1", "Última actualización")
     ws.update_acell(f"{meta_col}2", datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"))
 
-    # Formato visual
-    apply_formatting(ws, df)
+    # Campo de color según el pipeline
+    score_col_map = {
+        "b2b_leads":    "lead_score",
+        "car_arbitrage": "opportunity",
+        "digital_audit": "priority",
+    }
+    apply_formatting(ws, df, score_col=score_col_map.get(pipeline_type, "lead_score"))
 
     url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
     logger.info("Sheet actualizado: %s", url)
     return url
+
+
+# ── Dropdown Estado ──────────────────────────────────────────────────────────
+
+def _set_estado_dropdown(
+    spreadsheet: gspread.Spreadsheet,
+    ws: gspread.Worksheet,
+    first_data_row: int,
+    last_row: int,
+) -> None:
+    """Aplica validación de dropdown a la columna A (Estado) para las filas de datos."""
+    try:
+        sheet_id = ws._properties["sheetId"]
+        requests = [{
+            "setDataValidation": {
+                "range": {
+                    "sheetId":       sheet_id,
+                    "startRowIndex": first_data_row - 1,  # 0-based
+                    "endRowIndex":   last_row,
+                    "startColumnIndex": 0,
+                    "endColumnIndex":   1,
+                },
+                "rule": {
+                    "condition": {
+                        "type":   "ONE_OF_LIST",
+                        "values": [{"userEnteredValue": v} for v in ESTADO_OPTIONS],
+                    },
+                    "showCustomUi": True,
+                    "strict":       False,
+                },
+            }
+        }]
+        spreadsheet.batch_update({"requests": requests})
+    except Exception as e:
+        logger.warning("Dropdown Estado no aplicado: %s", str(e)[:80])
+
+
+# ── Append incremental ────────────────────────────────────────────────────────
+
+def append_new_leads(
+    df: pd.DataFrame,
+    spreadsheet_id: str,
+    worksheet_name: str,
+    gc: gspread.Client,
+    pipeline_type: str = "b2b_leads",
+) -> tuple[str, int]:
+    """
+    Añade solo los nuevos leads al Sheet sin tocar filas existentes.
+
+    - Columna A: Estado (dropdown, gestionado por el cliente)
+    - Columnas B…N: datos del pipeline
+    - Última columna: fecha_alta
+
+    Returns:
+        (url_del_sheet, n_filas_añadidas)
+    """
+    try:
+        spreadsheet = gc.open_by_key(spreadsheet_id)
+    except SpreadsheetNotFound:
+        raise ValueError(
+            f"Spreadsheet no encontrado: {spreadsheet_id}. "
+            "Verifica que lo hayas compartido con el Service Account."
+        )
+
+    # Columnas de datos (sin Estado ni fecha_alta, que añadimos nosotros)
+    export_cols = _COLUMNS_BY_TYPE.get(pipeline_type, EXPORT_COLUMNS)
+    data_cols   = [c for c in export_cols if c in df.columns]
+    df_data     = df[data_cols].copy().fillna("")
+
+    # Cabecera completa: Estado + datos + fecha_alta
+    headers = ["Estado"] + data_cols + ["fecha_alta"]
+
+    ws = get_or_create_worksheet(spreadsheet, worksheet_name, num_cols=len(headers))
+
+    # ── ¿Hoja nueva o existente? ──────────────────────────────────────────────
+    existing = ws.get_all_values()
+    is_new   = len(existing) == 0
+
+    if is_new:
+        ws.append_row(headers, value_input_option="RAW")
+        # Formato cabecera
+        last_col = _col_letter(len(headers) - 1)
+        try:
+            format_cell_range(
+                ws, f"A1:{last_col}1",
+                CellFormat(
+                    backgroundColor=HEADER_COLOR,
+                    textFormat=TextFormat(bold=True, foregroundColor=Color(1, 1, 1)),
+                ),
+            )
+            set_frozen(ws, rows=1)
+        except Exception:
+            pass
+        first_new_row = 2
+    else:
+        first_new_row = len(existing) + 1
+
+    if df_data.empty:
+        logger.info("[sheets] Sin leads nuevos para añadir")
+        return f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}", 0
+
+    # ── Construir filas nuevas ────────────────────────────────────────────────
+    today = date.today().isoformat()
+    new_rows = [
+        ["🔵 Pendiente"] + row.tolist() + [today]
+        for _, row in df_data.iterrows()
+    ]
+
+    ws.append_rows(new_rows, value_input_option="RAW")
+    logger.info("[sheets] %d filas añadidas (total hoja: %d)",
+                len(new_rows), first_new_row + len(new_rows) - 2)
+
+    # ── Colorear filas nuevas según score ─────────────────────────────────────
+    score_col_map = {
+        "b2b_leads":     "lead_score",
+        "car_arbitrage": "opportunity",
+        "digital_audit": "priority",
+    }
+    score_col = score_col_map.get(pipeline_type, "lead_score")
+    fallback  = SCORE_COLORS.get("discard", Color(0.9, 0.9, 0.9))
+    last_col  = _col_letter(len(headers) - 1)
+
+    try:
+        row_formats = []
+        for i, (_, row) in enumerate(df_data.iterrows()):
+            r = first_new_row + i
+            score_val = str(row.get(score_col, "")).strip()
+            row_formats.append((
+                f"A{r}:{last_col}{r}",
+                CellFormat(backgroundColor=SCORE_COLORS.get(score_val, fallback)),
+            ))
+        format_cell_ranges(ws, row_formats)
+    except Exception as e:
+        logger.warning("[sheets] Coloreado parcial: %s", str(e)[:80])
+
+    # ── Dropdown Estado para las filas nuevas ─────────────────────────────────
+    last_row = first_new_row + len(new_rows) - 1
+    _set_estado_dropdown(spreadsheet, ws, first_new_row, last_row)
+
+    url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+    logger.info("[sheets] Sheet actualizado: %s", url)
+    return url, len(new_rows)
 
 
 # ── Punto de entrada ──────────────────────────────────────────────────────────

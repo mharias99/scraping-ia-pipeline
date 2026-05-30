@@ -3,16 +3,47 @@ client:
   id: "cliente_ejemplo"
 
 scraper:
-  source: "firecrawl"          # firecrawl (recomendado) | indeed
+  source: "both"               # firecrawl | apify | both (firecrawl=calidad · apify=volumen)
   location: "España"
+
+  # Queries compartidas (fallback si no se definen las específicas por portal)
   queries:
     - "data entry"
     - "administrativo excel"
     - "grabador datos"
     - "auxiliar administrativo excel"
     - "facturación administrativa"
+
+  # InfoJobs tiende a mezclar resultados no relacionados con queries genéricas;
+  # estas queries más específicas filtran mejor los leads de automatización.
+  infojobs_queries:
+    - "operador introducción datos"
+    - "grabador datos excel"
+    - "administrativo base de datos"
+    - "auxiliar contable excel"
+    - "gestor facturación administrativa"
+
+  # Indeed interpreta bien las queries en inglés; se mantienen más genéricas.
+  indeed_queries:
+    - "data entry"
+    - "administrativo excel"
+    - "grabador datos"
+    - "auxiliar administrativo excel"
+    - "facturación administrativa"
+
   max_pages_per_query: 3
-  max_results: 50
+  max_results: 100              # "both" reparte: ~50 Firecrawl + ~50 Apify
+
+  # ── Apify (volumen masivo) ─────────────────────────────────────────────────
+  apify:
+    enabled: true
+    actor_infojobs: "unfenced-group/infojobs-net-scraper"  # API interna InfoJobs, datos ricos
+    actor_indeed:   "misceres/indeed-scraper"       # 1.5M runs — el más usado para Indeed
+    max_items_per_query: 50                      # Items a pedir por (query, portal)
+
+    # Queries opcionales para Apify — si vacío, hereda infojobs_queries/indeed_queries
+    infojobs_queries: []
+    indeed_queries:   []
 
 enricher:
   model: "claude-haiku-4-5-20251001"

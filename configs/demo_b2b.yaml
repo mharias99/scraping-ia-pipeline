@@ -1,0 +1,45 @@
+# DEMO CONFIG — NO versionar con spreadsheet_id de clientes reales.
+# Para clientes: copiar a configs/cliente_NOMBRE.yaml y cambiar los IDs.
+client:
+  name: "Demo B2B — Automatización Backoffice"
+  id: "demo_b2b"
+
+pipeline_type: "b2b_leads"
+
+scraper:
+  source: "both"
+  location: "España"
+
+  infojobs_queries:
+    - "operador introducción datos"
+    - "grabador datos excel"
+    - "administrativo base de datos"
+    - "auxiliar contable excel"
+    - "gestor facturación administrativa"
+
+  indeed_queries:
+    - "data entry"
+    - "administrativo excel"
+    - "grabador datos"
+    - "auxiliar administrativo excel"
+    - "facturación administrativa"
+
+  max_pages_per_query: 3
+  max_results: 100
+
+  apify:
+    enabled: true
+    actor_infojobs: "unfenced-group/infojobs-net-scraper"
+    actor_indeed:   "misceres/indeed-scraper"
+    max_items_per_query: 50
+
+enricher:
+  model: "claude-haiku-4-5-20251001"
+  batch_size: 5
+  min_score: "medium"
+
+delivery:
+  google_sheets:
+    enabled: true
+    spreadsheet_id: "1iArOndMKEgR9KXJhsoZQKt1qWOEe7pVaoFW_YLl9i5k"
+    worksheet_name: "B2B Leads"

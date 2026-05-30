@@ -24,10 +24,15 @@
 | Integración Firecrawl en `main.py` | ✅ Completado | 2026-05-29 | `1e9c84d` — `source: firecrawl` en YAML |
 | Pipeline E2E con Firecrawl + Sheets | ✅ Completado | 2026-05-29 | 50 ofertas → 31 leads → Sheet en 98s |
 | Vista visual del proyecto (Rosen Charts) | ✅ Completado | 2026-05-29 | `project-ui/` · Next.js + D3 · 5 gráficas |
-| Integrar Apify para volumen masivo | ⬜ Pendiente | — | ADR-002 — cuando se supere free tier Firecrawl |
-| Tests `firecrawl_scraper.py` | ⬜ Pendiente | — | Mock `V1FirecrawlApp` |
-| Security review (`code-reviewer` agent) | ⬜ Pendiente | — | Sobre `src/delivery/` y `src/cleaner/` |
-| Guion demo comercial 10 min | ⬜ Pendiente | — | Fase 5.5 |
+| Rediseño UI premium + 4 páginas | ✅ Completado | 2026-05-30 | LeadOS design system · sidebar nav · framer-motion · B2B/Coches/Digital pages |
+| Dashboard live via stats.json    | ✅ Completado | 2026-05-30 | `src/delivery/stats_exporter.py` · `data/web/stats.json` · `lib/stats.ts` · SSR sin rebuild |
+| Fix Google Sheets dashboard      | ✅ Completado | 2026-05-30 | `dashboard_builder.py`: gspread 6.x `update(values, range)` + batch writes (2 calls vs 20+) + 3 pipelines |
+| Correcciones AUDIT_REPORT.md     | ✅ Completado | 2026-05-30 | 9 fixes: .gitignore, req.txt pin, permanently_closed, N<5 guard, CRM type-gate, _apify_base, legacy/, 29 tests nuevos (100 total) |
+| Dashboards Sheets especializados | ✅ Completado | 2026-05-30 | 3 dashboards distintos: B2B (embudo+outreach), Cars (margen€+modelos), Digital (debilidades+call-ready) · KPIs específicos por vertical |
+| Integrar Apify para volumen masivo | ✅ Completado | 2026-05-29 | `src/scraper/apify_scraper.py` · `source: "both"` en YAML · coexiste con Firecrawl |
+| Tests `firecrawl_scraper.py` | ✅ Completado | 2026-05-29 | 32 tests en `tests/test_firecrawl_scraper.py` — suite total 71 |
+| Security review (`code-reviewer` agent) | ✅ Completado | 2026-05-29 | 7 bugs corregidos en `src/delivery/` y `src/cleaner/` |
+| Guion demo comercial 10 min | ✅ Completado | 2026-05-29 | `docs/DEMO_SCRIPT.md` — 10 min, objeciones, precios, plan de fallo |
 
 ---
 
@@ -52,6 +57,7 @@
 | pytest-asyncio | 1.4.0 | Tests async para Playwright | 2026-05-29 |
 | ruff | 0.15.15 | Linting + formato Python | 2026-05-29 |
 | mypy | 2.1.0 | Type checking Python | 2026-05-29 |
+| apify-client | 3.0.2 | Volumen masivo InfoJobs + Indeed — actores `unfenced-group` + `misceres` | 2026-05-29 |
 | **Rosen Charts** | latest | Vista visual del proyecto (React/d3) | 2026-05-29 |
 | Skills instaladas | — | firecrawl-agent, data-pipeline, pytest-testing, pandas-data-analysis, context-compressor, token-optimizer, token-dashboard | 2026-05-29 |
 
@@ -86,8 +92,8 @@
 
 ---
 
-### ADR-002 · Extracción de volumen masivo → Apify (planificado)
-- **Fecha:** 2026-05-29 · **Estado:** Pendiente de implementación
+### ADR-002 · Extracción de volumen masivo → Apify + Firecrawl coexistiendo
+- **Fecha:** 2026-05-29 · **Estado:** Implementado · **Commit:** pendiente
 - **Contexto:** Firecrawl free tier = 500 créditos/mes (~50-100 páginas/ejecución). Para clientes que necesiten >500 ofertas/semana, el coste y volumen de Firecrawl no escalan.
 - **Decisión:** Usar Apify con sus actores oficiales para portales de empleo (InfoJobs, Indeed) para extracciones masivas de listas de ofertas.
 - **Justificación técnica:** Actores ya mantenidos para cada portal. Proxies rotativos incluidos. Paralelización nativa. Output JSON directamente compatible con `lead_enricher.py`.
@@ -117,12 +123,12 @@
 
 | Tema | Síntoma observado | Impacto | Acción propuesta |
 |------|-------------------|---------|------------------|
-| InfoJobs: volumen bajo | Solo 5 ofertas/query (primera página) | Alto | Implementar paginación en Firecrawl o migrar a Apify |
-| Indeed: artefactos HTML | Empresa captura `<br>` y algunos links de nav pasan filtros | Medio | Mejorar regex + añadir lista de stopwords |
+| InfoJobs: volumen bajo | ~~Solo 5 ofertas/query~~ → hasta 15/query con paginación 3 páginas | ~~Alto~~ Resuelto | Paginación implementada en `run_firecrawl_scraper(max_pages_per_query=3)` |
+| Indeed: artefactos HTML | ~~Empresa captura `<br>` y algunos links de nav pasan filtros~~ → `_clean_indeed_company()` limpia códigos postales, HTML, markdown | ~~Medio~~ Resuelto | `_clean_indeed_company()` en `firecrawl_scraper.py` |
 | Firecrawl créditos | 500 créditos/mes free → ~50 ejecuciones/mes máx | Alto | Plan de pago $19/mes o Apify para volumen |
 | Tests Firecrawl scraper | `firecrawl_scraper.py` sin cobertura pytest | Medio | Mock `V1FirecrawlApp` con `unittest.mock` |
 | Security review pendiente | `src/delivery/` y `src/cleaner/` sin revisión formal | Alto | Invocar agente `code-reviewer` |
-| Queries en español | InfoJobs devuelve resultados no relacionados (call center, seguros) | Medio | Refinar queries + post-filtro por sector |
+| Queries en español | ~~InfoJobs devuelve resultados no relacionados~~ → queries específicas por portal en `configs/*.yaml` | ~~Medio~~ Resuelto | `infojobs_queries` + `indeed_queries` en config + `ScraperConfig` |
 | Sheets rate limit | A >300 leads puede alcanzar límite API | Medio | Escribir en lotes de 100 con `time.sleep(1)` |
 
 ---
@@ -139,7 +145,29 @@
 
 ---
 
-## 7. Métricas por sesión
+## 7. Volumen esperado en producción
+
+> Basado en pruebas reales con las APIs en free tier. Escalado a planes de pago (~€60/mes en APIs).
+
+| Pipeline | Free (ahora) | Producción (€60/mes APIs) |
+|----------|-------------|--------------------------|
+| B2B leads únicos/día | 20-30 | **80-150** |
+| B2B leads únicos/semana | ~100 | **400-600** |
+| B2B leads únicos/mes | ~300 | **1.500-2.500** |
+| Coches oportunidades HIGH/día | ~15 | **50-100** |
+| Auditoría digital negocios HIGH/día | ~10 (1 ciudad) | **40-80** (4 ciudades) |
+
+**Techo real:** InfoJobs + Indeed España tienen ~50.000 ofertas activas de administrativo/data entry/mes.
+Con queries afinadas por sector, **2.000+ leads únicos/mes sin repetir** por categoría.
+
+**Coste APIs en producción:**
+- Firecrawl $49/mes → 10.000 créditos (~1.000 ejecuciones)
+- Apify $49/mes → créditos suficientes para 2.000 runs/mes
+- Anthropic Claude Haiku ~$0.003-0.005/ejecución de 100 leads
+
+---
+
+## 8. Métricas por sesión
 
 | Fecha | Tareas cerradas | Tokens aprox. | Tiempo aprox. | Coste estimado |
 |-------|-----------------|---------------|---------------|----------------|
@@ -161,12 +189,13 @@
 - URL pública confirmada: https://mharias99-scraping-ia-pipeline-src-dashboard-app-py.streamlit.app
 - Sirviendo `data/sample/leads_sample.csv` como fallback. Listo para compartir con clientes.
 
-**B. Volumen de ofertas insuficiente (InfoJobs solo da 5/query)**
-- **Qué:** Actualmente InfoJobs devuelve 5 ofertas por query (solo primera página). Con 5 queries = 25 ofertas de InfoJobs máx. Para un producto real necesitamos 200-500/ejecución.
-- **Por qué ahora:** Limita directamente la calidad del servicio al cliente.
-- **Cómo (opción rápida):** Implementar paginación en `firecrawl_scraper.py` → scrape páginas 1, 2, 3 de InfoJobs por query. Archivo: `src/scraper/firecrawl_scraper.py` función `run_firecrawl_scraper()`.
-- **Cómo (opción escalable):** Integrar Apify (ADR-002) — actor oficial de InfoJobs con proxies rotativos. Coste: ~$0.01/run.
-- **Riesgo si se ignora:** A 5 ofertas/query, el 80% del volumen viene de Indeed que tiene peor calidad de datos.
+**B + C + D + E + F ✅ TODOS COMPLETADOS — Ver changelog**
+
+**B. ~~Volumen de ofertas insuficiente~~ ✅ COMPLETADO**
+- Paginación implementada en `run_firecrawl_scraper(max_pages_per_query=3)` — InfoJobs e Indeed.
+- URL builder por fuente en `PAGINATION` dict: InfoJobs usa `&page=N`, Indeed usa `&start=(N-1)*10`.
+- Stop automático si una página no devuelve resultados nuevos.
+- Capacidad: 5 queries × 2 fuentes × 3 páginas × ~5 ofertas = ~150 ofertas/ejecución (antes: ~25).
 
 **C. Calidad de datos de Indeed (ruido en empresa/ubicación)**
 - **Qué:** El campo `company` en resultados de Indeed sigue capturando artefactos: códigos postales pegados al nombre (`IGTP08916 Badalona`), tags HTML residuales. Claude los puntúa igualmente pero la presentación al cliente es sucia.
@@ -199,10 +228,8 @@
 
 ### 🟢 MEJORA — Para escalar el negocio
 
-**G. Guion demo comercial (Fase 5.5)**
-- **Qué:** Un script de 10 minutos para una reunión de ventas con una PYME. Muestra: ejecutar pipeline en vivo → ver leads aparecer en su Google Sheet → abrir dashboard Streamlit.
-- **Por qué:** Sin guion, cada demo es diferente. Con guion, cualquier persona del equipo puede venderlo.
-- **Cómo:** Crear `docs/DEMO_SCRIPT.md` con: contexto del cliente, comandos exactos a ejecutar, qué mostrar en pantalla y en qué orden, respuestas a objeciones comunes.
+**G. ~~Guion demo comercial~~ ✅ COMPLETADO**
+- `docs/DEMO_SCRIPT.md`: script de 10 min, comandos exactos, 5 objeciones con respuesta, tabla de precios, plan de fallo, pasos post-reunión.
 
 **H. Créditos Firecrawl: pasar a plan de pago**
 - **Qué:** Free tier = 500 créditos/mes. Con 10 requests por ejecución, son 50 ejecuciones/mes máx. En producción con varios clientes se agotará.
@@ -221,7 +248,15 @@
 
 | Fecha | Cambio |
 |-------|--------|
+| 2026-05-29 | Integración Apify: `apify_scraper.py` + `source: "both"` · Firecrawl=calidad · Apify=volumen · dedup unificado |
+| 2026-05-29 | Guion demo comercial: `docs/DEMO_SCRIPT.md` — 10 min, comandos, 5 objeciones, precios, plan de fallo |
+| 2026-05-29 | Security review `src/delivery/` + `src/cleaner/`: 7 bugs corregidos (KeyError, TypeError, except genérico, off-by-one, batch formatting) |
+| 2026-05-29 | Tests `firecrawl_scraper.py`: 32 tests nuevos → suite total 71 en verde |
+| 2026-05-29 | Queries por portal: `infojobs_queries` + `indeed_queries` en config + `ScraperConfig` + `step_scrape` |
+| 2026-05-29 | Indeed calidad: `_clean_indeed_company()` elimina códigos postales, HTML, markdown del campo empresa |
+| 2026-05-29 | Paginación InfoJobs + Indeed: `max_pages_per_query=3`, stop automático sin resultados nuevos |
 | 2026-05-29 | Deploy Streamlit Cloud confirmado: https://mharias99-scraping-ia-pipeline-src-dashboard-app-py.streamlit.app |
+| 2026-05-30 | Rediseño UI premium: sidebar nav · glassmorphism · framer-motion · 4 páginas (Home/B2B/Coches/Digital) · animaciones CSS + número count-up |
 | 2026-05-29 | Vista visual Rosen Charts completada: `project-ui/` Next.js + D3 · funnel, donut, bar, breakdown, metrics · build OK |
 | 2026-05-29 | Creado `PROJECT_DASHBOARD.md` con histórico completo · plantilla oficial aplicada |
 | 2026-05-29 | Firecrawl integrado en `main.py` vía `cfg.scraper.source` — `1e9c84d` |
